@@ -97,7 +97,7 @@ Each milestone is built on its own branch, PR'd into `main` on completion:
 1. `feat/skeleton` — FastAPI + bus + scheduler + demo agent + HTMX dashboard (done)
 2. `feat/meraki-client` — Meraki SDK client, snapshot fetch+persist, camera tile, webhook→bus wiring (done)
 3. `feat/vlm-zone-intrusion` — VLM adapter + Agent A (zone intrusion) (done)
-4. `feat/ppe-compliance` — Agent B
+4. `feat/ppe-compliance` — Agent B (PPE / hard hat) (done)
 5. `feat/rogue-device` — Agent C + whitelist UI
 6. `feat/polish` — heartbeat narrator, external-agent docs page, face-blur option
 
