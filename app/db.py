@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from sqlmodel import Session, create_engine, Engine
+from sqlalchemy import Engine
+from sqlmodel import Session, create_engine
 
 _engine: Engine | None = None
 

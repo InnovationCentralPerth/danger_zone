@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "danger-zone"
 version = "0.1.0"
 description = "Agentic AI demonstrator using Meraki cameras and network"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",

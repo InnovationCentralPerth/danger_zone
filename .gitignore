@@ -1,4 +1,7 @@
 .env
+.env~
+*~
+.*.swp
 data/
 __pycache__/
 *.pyc

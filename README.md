@@ -18,6 +18,9 @@ A live HTMX dashboard shows the agent reasoning traces, incidents, and status in
 cp .env.example .env
 # Fill in MERAKI_API_KEY, MERAKI_ORG_ID, GITHUB_TOKEN, etc.
 
+uv python install 3.12          # if 3.12 isn't already available
+uv venv --python 3.12
+source .venv/bin/activate
 uv pip install -e ".[dev]"
 DEBUG=true uvicorn app.main:app --reload
 ```
