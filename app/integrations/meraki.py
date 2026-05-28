@@ -129,29 +129,49 @@ class MerakiClient:
         self,
         serial: str,
         *,
-        max_wait_seconds: int = 20,
+        max_wait_seconds: int = 25,
         poll_interval: float = 1.5,
+        initial_delay: float = 3.0,
     ) -> bytes:
         """Generate a snapshot URL and poll it until the image is ready.
 
-        Meraki signed snapshot URLs return 404 until the image is uploaded
-        from the camera (typically 3-8 seconds). We poll with a timeout.
+        Meraki signed snapshot URLs return errors until the camera has
+        captured + uploaded the frame (typically 3-8 s, sometimes longer on
+        older MV models). The "not ready" status varies by camera firmware:
+        newer MVs return 404, older ones (MV12, MV21, MV71) return 400 with
+        a generic HTML error page. We treat 400/403/404 as transient during
+        the polling window and only raise on persistent failure past the
+        timeout, or on other status codes (5xx, 401, etc).
         """
         url = await self.generate_camera_snapshot_url(serial)
+        logger.debug("Meraki snapshot URL for %s: %s", serial, url)
+
+        # Give the camera a head-start before the first poll; cuts down on
+        # noise in the logs and matches Meraki's own guidance.
+        await asyncio.sleep(initial_delay)
+
         deadline = asyncio.get_event_loop().time() + max_wait_seconds
+        last_status: int | None = None
+        last_body_preview: str = ""
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             while asyncio.get_event_loop().time() < deadline:
                 resp = await client.get(url)
                 if resp.status_code == 200:
                     return resp.content
-                if resp.status_code not in (404, 403):
+                last_status = resp.status_code
+                last_body_preview = resp.text[:200].replace("\n", " ")
+                if resp.status_code not in (400, 403, 404):
                     raise MerakiError(
-                        f"Unexpected status {resp.status_code} fetching snapshot for {serial}"
+                        f"Unexpected status {resp.status_code} fetching snapshot for "
+                        f"{serial}: {last_body_preview!r} (url={url})"
                     )
                 await asyncio.sleep(poll_interval)
 
-        raise MerakiError(f"Snapshot for camera {serial} not ready after {max_wait_seconds}s")
+        raise MerakiError(
+            f"Snapshot for camera {serial} not ready after {max_wait_seconds}s "
+            f"(last_status={last_status}, body={last_body_preview!r})"
+        )
 
     # ---- network clients --------------------------------------------------
 
