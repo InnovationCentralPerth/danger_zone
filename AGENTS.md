@@ -82,9 +82,9 @@ config/
 - `DEBUG=true` enables demo agent (fires synthetic incidents every 15s)
 
 ## Config files
-- `config/cameras.yaml` — camera serial, exclusion zone polygon (normalised 0–1 coords), PPE area polygon, cooldown_seconds
-- `config/whitelist.yaml` — MAC entries with label/vendor; separate `blacklist` section
-- `config/models.yaml` — model catalogue; `default` key sets startup default
+- `config/cameras.yaml` — **gitignored**; copy from `config/cameras.example.yaml`. Camera serial, network_id, exclusion zone polygon (normalised 0–1 coords), PPE area polygon, cooldown_seconds. Loader falls back to the `.example.yaml` if the real file is missing.
+- `config/whitelist.yaml` — **gitignored**; copy from `config/whitelist.example.yaml`. MAC entries with label/vendor; separate `blacklist` section.
+- `config/models.yaml` — checked in; model catalogue, `default` key sets startup default.
 
 ## Meraki integration notes
 - API rate limit: 10 req/s per org; all calls need backoff + retry

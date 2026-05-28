@@ -13,3 +13,7 @@ __pycache__/
 dist/
 *.egg-info/
 .DS_Store
+
+# Site-specific config (use config/*.example.yaml as templates)
+config/cameras.yaml
+config/whitelist.yaml
