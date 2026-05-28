@@ -65,10 +65,11 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
 
     start_subscribers()
 
-    # Start the zone intrusion agent (subscribes to camera.snapshot)
-    from app.agents import zone_intrusion
+    # Start the VLM-backed agents (both subscribe to camera.snapshot)
+    from app.agents import ppe_compliance, zone_intrusion
 
     zone_intrusion.start()
+    ppe_compliance.start()
 
     # Schedule demo agents (milestone 1 — replace with real agents later)
     if settings.debug:

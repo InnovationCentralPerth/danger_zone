@@ -78,9 +78,50 @@ async function captureNow() {
 document.addEventListener('DOMContentLoaded', () => {
   loadConfiguredCamera();
   loadModels();
+  loadAgentModes();
   document.getElementById('snapshot-trigger').addEventListener('click', captureNow);
   document.getElementById('model-select').addEventListener('change', changeModel);
 });
+
+// ---- agent active/passive toggles -----------------------------------------
+
+async function loadAgentModes() {
+  try {
+    const r = await fetch('/agents/modes');
+    const modes = await r.json();
+    renderAgentModes(modes);
+  } catch (e) {
+    console.error('Failed to load agent modes', e);
+  }
+}
+
+function renderAgentModes(modes) {
+  const host = document.getElementById('agent-modes');
+  host.innerHTML = '';
+  for (const m of modes) {
+    const active = m.mode === 'active';
+    const btn = document.createElement('button');
+    btn.className = `btn btn-sm ${active ? 'btn-success' : 'btn-outline-secondary'}`;
+    btn.title = `${m.agent}: click to toggle`;
+    btn.textContent = `${m.agent}: ${m.mode}`;
+    btn.addEventListener('click', () => toggleAgentMode(m.agent, m.mode));
+    host.appendChild(btn);
+  }
+}
+
+async function toggleAgentMode(agent, current) {
+  const next = current === 'active' ? 'passive' : 'active';
+  try {
+    await fetch(`/agents/${agent}/mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: next }),
+    });
+    await loadAgentModes();
+  } catch (e) {
+    console.error('Failed to toggle agent mode', e);
+  }
+}
 
 // ---- model picker ---------------------------------------------------------
 

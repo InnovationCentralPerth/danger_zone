@@ -12,6 +12,7 @@ from app.agents import zone_intrusion
 from app.integrations import vlm
 from app.main import _init_db
 from app.models.db import IncidentType
+from app.services.agent_mode import AgentMode, set_mode
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +24,8 @@ def setup_env(tmp_path, monkeypatch):
     config.get_settings.cache_clear()
     _init_db()
     vlm.reset_provider()
+    # Default mode is passive; flip to active for these tests.
+    set_mode("zone_intrusion", AgentMode.ACTIVE)
     # Reset cooldown state between tests.
     zone_intrusion._last_fired.clear()
     yield
@@ -150,4 +153,17 @@ async def test_unknown_camera_is_noop(tmp_path):
         patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
     ):
         await zone_intrusion.run("UNKNOWN", snap, trigger="t")
+    mock_provider.analyse_image.assert_not_awaited()
+
+
+async def test_passive_mode_skips_vlm_call(tmp_path):
+    set_mode("zone_intrusion", AgentMode.PASSIVE)
+    snap = _write_snapshot(tmp_path)
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.9))
+    with (
+        patch("app.agents.zone_intrusion.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
+    ):
+        await zone_intrusion.run("TEST-SERIAL", snap, trigger="t")
     mock_provider.analyse_image.assert_not_awaited()
