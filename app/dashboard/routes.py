@@ -38,7 +38,7 @@ async def sse_events(request: Request) -> EventSourceResponse:
                         "event": event.topic.replace(".", "_"),
                         "data": json.dumps(event.payload, default=str),
                     }
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send keepalive comment
                     yield {"event": "ping", "data": datetime.utcnow().isoformat()}
         finally:

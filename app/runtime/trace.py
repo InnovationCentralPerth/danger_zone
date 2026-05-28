@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import json
 import time
-from contextlib import asynccontextmanager
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable
-
-from sqlmodel import Session
+from typing import Any
 
 from app.models.db import AgentTrace
 from app.runtime.bus import bus

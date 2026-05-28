@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -30,8 +30,8 @@ async def invoke_agent(agent_name: str, body: InvokeRequest) -> dict[str, str]:
 
 @router.get("/traces", summary="Agent reasoning traces")
 async def list_traces(
-    since: Optional[datetime] = None,
-    agent: Optional[str] = None,
+    since: datetime | None = None,
+    agent: str | None = None,
     limit: int = 50,
 ) -> list[AgentTrace]:
     with get_session() as session:

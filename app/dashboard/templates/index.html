@@ -14,8 +14,8 @@
 <nav class="navbar navbar-dark bg-black border-bottom border-danger">
   <div class="container-fluid">
     <span class="navbar-brand fw-bold text-danger fs-4">⚡ danger_zone</span>
-    <span class="text-muted small">Agentic AI Security Demonstrator</span>
-    <a href="/docs" class="btn btn-outline-secondary btn-sm" target="_blank">API Docs</a>
+    <span class="navbar-subtitle small">Agentic AI Security Demonstrator</span>
+    <a href="/docs" class="btn btn-outline-light btn-sm" target="_blank">API Docs</a>
   </div>
 </nav>
 
@@ -29,6 +29,21 @@
       </div>
     </div>
 
+    <!-- Camera tile (placeholder for milestone 2) -->
+    <div class="col-12">
+      <div class="card bg-black border-secondary">
+        <div class="card-header border-secondary fw-bold d-flex justify-content-between">
+          <span>Camera Feed</span>
+          <span class="badge bg-warning text-dark">milestone 2</span>
+        </div>
+        <div class="card-body camera-placeholder text-center py-5">
+          <div class="display-6 text-secondary mb-2">📷</div>
+          <p class="text-muted mb-0">Live snapshot will appear here when the Meraki client lands.</p>
+          <small class="text-secondary">Camera serial configured in <code>config/cameras.yaml</code></small>
+        </div>
+      </div>
+    </div>
+
     <!-- Incident feed -->
     <div class="col-lg-8">
       <div class="card bg-black border-secondary">
@@ -38,7 +53,7 @@
         </div>
         <div class="card-body p-0" style="max-height: 70vh; overflow-y: auto;">
           <div id="incident-list">
-            <p class="text-muted text-center p-4">No incidents yet — watching…</p>
+            <p class="text-secondary text-center p-4">No incidents yet — watching…</p>
           </div>
         </div>
       </div>
@@ -50,7 +65,10 @@
         <div class="card-header border-secondary fw-bold">Agent Reasoning</div>
         <div class="card-body p-0" style="max-height: 70vh; overflow-y: auto;">
           <div id="trace-list" class="p-2">
-            <p class="text-muted text-center p-3 small">Waiting for agent activity…</p>
+            <p class="text-secondary text-center p-3 small mb-1">No reasoning traces yet.</p>
+            <p class="text-muted text-center small mb-0" style="font-size: 0.72rem;">
+              Real agent traces appear here when the VLM-backed agents run (milestone 3).
+            </p>
           </div>
         </div>
       </div>

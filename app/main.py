@@ -2,24 +2,22 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import SQLModel
 
+from app.agents.demo import fire_demo_incident, heartbeat_status
 from app.config import get_settings
 from app.models.db import AgentTrace, Device, Incident, Setting  # noqa: F401 — register tables
-from app.runtime.bus import bus
 from app.runtime.scheduler import scheduler
-from app.agents.demo import fire_demo_incident, heartbeat_status
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def _init_db() -> None:
-    from sqlmodel import create_engine, Session
+    from sqlmodel import create_engine
 
     settings = get_settings()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -29,6 +27,7 @@ def _init_db() -> None:
     SQLModel.metadata.create_all(engine)
     # Store engine on app state via a module-level singleton
     from app import db as db_module
+
     db_module._engine = engine
 
 
@@ -58,10 +57,10 @@ app = FastAPI(
 )
 
 # Routers (imported here to avoid circular imports)
+from app.api.agents import router as agents_router  # noqa: E402
+from app.api.cameras import router as cameras_router  # noqa: E402
 from app.api.incidents import router as incidents_router  # noqa: E402
-from app.api.agents import router as agents_router        # noqa: E402
-from app.api.network import router as network_router      # noqa: E402
-from app.api.cameras import router as cameras_router      # noqa: E402
+from app.api.network import router as network_router  # noqa: E402
 from app.dashboard.routes import router as dashboard_router  # noqa: E402
 from app.webhooks.meraki import router as webhook_router  # noqa: E402
 

@@ -2,27 +2,27 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlmodel import Field, SQLModel
 
 
-class IncidentType(str, Enum):
+class IncidentType(StrEnum):
     INTRUSION = "INTRUSION"
     PPE_VIOLATION = "PPE_VIOLATION"
     ROGUE_DEVICE = "ROGUE_DEVICE"
     DEMO = "DEMO"
 
 
-class IncidentSeverity(str, Enum):
+class IncidentSeverity(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
 
-class IncidentStatus(str, Enum):
+class IncidentStatus(StrEnum):
     OPEN = "OPEN"
     REVIEWING = "REVIEWING"
     RESOLVED = "RESOLVED"
