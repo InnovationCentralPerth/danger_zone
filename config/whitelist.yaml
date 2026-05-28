@@ -1,0 +1,15 @@
+# Device whitelist / blacklist
+# Entries matched by MAC address (case-insensitive, colon-separated).
+
+whitelist:
+  - mac: "aa:bb:cc:dd:ee:ff"
+    label: "Laptop - Alice"
+    vendor: "Apple"
+  - mac: "11:22:33:44:55:66"
+    label: "Printer - Floor 2"
+    vendor: "HP"
+
+blacklist:
+  - mac: "de:ad:be:ef:00:01"
+    label: "Known rogue device"
+    reason: "Detected scanning in 2024-11"

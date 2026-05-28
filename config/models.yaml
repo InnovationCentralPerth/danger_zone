@@ -1,0 +1,25 @@
+# VLM model catalogue — served via GitHub Models (OpenAI-compatible API)
+# Only models with vision: true can process camera snapshots.
+
+default: "openai/gpt-4o-mini"
+
+models:
+  - id: "openai/gpt-4o-mini"
+    label: "GPT-4o mini (fast, low cost)"
+    vision: true
+    max_tokens: 1024
+
+  - id: "openai/gpt-4o"
+    label: "GPT-4o (higher quality)"
+    vision: true
+    max_tokens: 2048
+
+  - id: "anthropic/claude-3-5-sonnet"
+    label: "Claude 3.5 Sonnet"
+    vision: true
+    max_tokens: 2048
+
+  - id: "meta/llama-3.3-70b-instruct"
+    label: "Llama 3.3 70B (text only)"
+    vision: false
+    max_tokens: 2048

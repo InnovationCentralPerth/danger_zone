@@ -1,0 +1,29 @@
+# Camera configuration — single camera v1
+# Polygon coordinates are normalised 0.0–1.0 (x, y) from top-left of frame.
+
+cameras:
+  - serial: "XXXX-XXXX-XXXX"       # replace with your MV camera serial
+    name: "Main Entrance"
+    location: "Building A – Front"
+    network_id: "L_000000000000"    # replace with your Meraki network ID
+
+    # Zone that triggers INTRUSION alerts if a person is detected inside.
+    exclusion_zone:
+      name: "Restricted Area"
+      polygon:
+        - [0.4, 0.3]
+        - [0.9, 0.3]
+        - [0.9, 0.9]
+        - [0.4, 0.9]
+
+    # Zone where PPE compliance is checked.
+    ppe_area:
+      name: "Workshop Floor"
+      polygon:
+        - [0.0, 0.4]
+        - [0.5, 0.4]
+        - [0.5, 1.0]
+        - [0.0, 1.0]
+
+    # Seconds to wait before re-running VLM on the same camera after a hit.
+    cooldown_seconds: 10

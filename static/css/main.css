@@ -1,0 +1,25 @@
+body { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.incident-card {
+  border-left: 4px solid #6c757d;
+  margin-bottom: 0.5rem;
+  animation: fadeIn 0.3s ease;
+}
+.incident-card.HIGH    { border-left-color: #dc3545; }
+.incident-card.CRITICAL{ border-left-color: #ff0040; }
+.incident-card.MEDIUM  { border-left-color: #fd7e14; }
+.incident-card.LOW     { border-left-color: #ffc107; }
+
+.trace-entry {
+  font-size: 0.78rem;
+  border-bottom: 1px solid #222;
+  padding: 0.4rem 0;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+#heartbeat-banner { transition: all 0.5s; }

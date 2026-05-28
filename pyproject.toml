@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "danger-zone"
+version = "0.1.0"
+description = "Agentic AI demonstrator using Meraki cameras and network"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlmodel>=0.0.22",
+    "pydantic-settings>=2.6",
+    "httpx>=0.28",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.18",
+    "pyyaml>=6.0",
+    "aiofiles>=24.1",
+    "openai>=1.58",          # GitHub Models uses OpenAI-compatible API
+    "pillow>=11.0",
+    "sse-starlette>=2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-httpx>=0.32",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "types-pyyaml",
+    "types-aiofiles",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
