@@ -38,14 +38,17 @@ function refreshSnapshot() {
   const img = document.getElementById('camera-image');
   const empty = document.getElementById('camera-empty');
   const url = `/cameras/${cameraSerial}/snapshot/latest?ts=${Date.now()}`;
-  // probe first to avoid flashing a broken image
-  fetch(url, { method: 'HEAD' }).then((r) => {
-    if (r.ok) {
-      img.src = url;
-      img.classList.remove('d-none');
-      empty.classList.add('d-none');
-    }
-  }).catch(() => {});
+  // Try to load directly; show image only if it actually loads, hide on error.
+  const probe = new Image();
+  probe.onload = () => {
+    img.src = url;
+    img.classList.remove('d-none');
+    empty.classList.add('d-none');
+  };
+  probe.onerror = () => {
+    // No snapshot yet — leave the placeholder visible.
+  };
+  probe.src = url;
 }
 
 async function captureNow() {

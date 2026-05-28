@@ -117,8 +117,8 @@ class MerakiClient:
         self,
         serial: str,
         *,
-        max_wait_seconds: int = 20,
-        poll_interval: float = 1.5,
+        max_wait_seconds: int = 30,
+        poll_interval: float = 2.0,
     ) -> bytes:
         """Generate a snapshot URL and poll it until the image is ready.
 
@@ -129,17 +129,27 @@ class MerakiClient:
         deadline = asyncio.get_event_loop().time() + max_wait_seconds
 
         async with httpx.AsyncClient(timeout=10.0) as client:
+            last_status = None
             while asyncio.get_event_loop().time() < deadline:
                 resp = await client.get(url)
-                if resp.status_code == 200:
+                if resp.status_code == 200 and resp.content:
                     return resp.content
-                if resp.status_code not in (404, 403):
-                    raise MerakiError(
-                        f"Unexpected status {resp.status_code} fetching snapshot for {serial}"
-                    )
+                last_status = resp.status_code
+                # Meraki returns 400/403/404 while the camera is still
+                # uploading the frame. Treat any non-200 as "not ready yet"
+                # and keep polling until the deadline.
+                logger.debug(
+                    "Snapshot for %s not ready (HTTP %s), retrying in %.1fs",
+                    serial,
+                    resp.status_code,
+                    poll_interval,
+                )
                 await asyncio.sleep(poll_interval)
 
-        raise MerakiError(f"Snapshot for camera {serial} not ready after {max_wait_seconds}s")
+        raise MerakiError(
+            f"Snapshot for camera {serial} not ready after {max_wait_seconds}s "
+            f"(last status: {last_status})"
+        )
 
     # ---- network clients --------------------------------------------------
 

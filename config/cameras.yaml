@@ -2,10 +2,10 @@
 # Polygon coordinates are normalised 0.0–1.0 (x, y) from top-left of frame.
 
 cameras:
-  - serial: "XXXX-XXXX-XXXX"       # replace with your MV camera serial
-    name: "Main Entrance"
-    location: "Building A – Front"
-    network_id: "L_000000000000"    # replace with your Meraki network ID
+  - serial: "Q2GV-MGCS-QRM5"       # replace with your MV camera serial
+    name: "ICP Bookshelf"
+    location: "Building 216 – ICP Student area"
+    network_id: "L_703124491823231484"    # replace with your Meraki network ID
 
     # Zone that triggers INTRUSION alerts if a person is detected inside.
     exclusion_zone:
