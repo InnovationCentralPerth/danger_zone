@@ -68,6 +68,18 @@ config/
 - Key groups: `incidents`, `agents`, `cameras`, `network`, `models`, `ops`
 - `POST /agents/{name}/invoke` to trigger any named agent on demand
 
+## Agent active/passive mode
+- VLM-backed agents (`zone_intrusion`, `ppe_compliance`) honour a per-agent mode flag persisted in the `Setting` table
+- **Default on first boot is `passive`** — no VLM calls are made until you flip them. Prevents accidental token burn
+- API: `GET /agents/modes`, `GET/POST /agents/{name}/mode` (body: `{"mode": "active"|"passive"}`)
+- Dashboard has clickable pills in the nav; green = active, grey = passive
+- Lives in `app/services/agent_mode.py`; gated set is `GATED_AGENTS`
+
+## PPE compliance config
+- `cameras.yaml` → `ppe_area.required_item` controls what Agent B checks for
+- Currently supported: `"hard_hat"` (default) and `"hi_vis_vest"`
+- Add more by extending `_ITEMS` in `app/agents/ppe_compliance.py` (label, missing-count JSON key, definition string for the prompt)
+
 ## Webhook setup (Meraki → app)
 - Endpoint: `POST /webhooks/meraki`
 - Signature verification: HMAC-SHA256; set `MERAKI_WEBHOOK_SECRET` to the Meraki shared secret

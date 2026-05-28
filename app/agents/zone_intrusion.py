@@ -19,6 +19,7 @@ from app.integrations.vlm import VLMError, get_active_model, get_provider
 from app.models.db import IncidentSeverity, IncidentType
 from app.runtime.bus import bus
 from app.runtime.trace import AgentRun
+from app.services.agent_mode import is_active
 from app.services.config_loader import load_cameras
 from app.services.incidents import create_incident
 from app.services.zone import draw_zone_overlay
@@ -62,6 +63,10 @@ def _camera_config(serial: str) -> dict[str, Any] | None:
 
 async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot") -> None:
     """Process a single snapshot."""
+    if not is_active(AGENT_NAME):
+        logger.debug("zone_intrusion is passive; skipping %s", serial)
+        return
+
     cfg = _camera_config(serial)
     if not cfg:
         logger.debug("No camera config for %s; skipping zone_intrusion", serial)

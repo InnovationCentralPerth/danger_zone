@@ -2,10 +2,14 @@
 
 Triggered by ``camera.snapshot`` bus events. Loads the camera's PPE area
 polygon from config, draws it on the snapshot in yellow, and asks the VLM
-whether any person standing inside the polygon is missing a hard hat.
+whether any person standing inside is missing the required PPE item.
+
+The required item is configurable per-camera via
+``ppe_area.required_item`` (``hard_hat`` | ``hi_vis_vest``).
 
 Files a PPE_VIOLATION incident when a violation is detected. Cooldown is
-enforced per-camera, independently of the zone_intrusion agent.
+enforced per-camera, independently of the zone_intrusion agent. Skipped
+entirely when the agent is in passive mode.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from app.integrations.vlm import VLMError, get_active_model, get_provider
 from app.models.db import IncidentSeverity, IncidentType
 from app.runtime.bus import bus
 from app.runtime.trace import AgentRun
+from app.services.agent_mode import is_active
 from app.services.config_loader import load_cameras
 from app.services.incidents import create_incident
 from app.services.zone import draw_zone_overlay
@@ -36,16 +41,48 @@ _PPE_OUTLINE = (255, 210, 0, 230)
 _PPE_FILL = (255, 210, 0, 50)
 
 
-_PROMPT = """\
-You are reviewing a still frame from a construction-site security camera.
-The image has a yellow polygon drawn on it labelled "{label}" — this is a
-MANDATORY HARD HAT AREA.
+# Per-item config: human label, the JSON key used for the missing-count,
+# what the VLM should look for, and what definitely is NOT the item.
+_ITEMS: dict[str, dict[str, str]] = {
+    "hard_hat": {
+        "label": "hard hat",
+        "missing_key": "people_without_hardhat",
+        "definition": (
+            "A 'hard hat' is a rigid industrial safety helmet (any solid colour). "
+            "Beanies, caps, hoods, and hair are NOT hard hats."
+        ),
+        "area_label_default": "Hard Hat Area",
+    },
+    "hi_vis_vest": {
+        "label": "hi-vis vest",
+        "missing_key": "people_without_hivis",
+        "definition": (
+            "A 'hi-vis vest' is a high-visibility safety vest in fluorescent "
+            "yellow, orange, or lime — usually with reflective silver stripes. "
+            "Regular brightly-coloured clothing without reflective stripes is "
+            "NOT a hi-vis vest."
+        ),
+        "area_label_default": "Hi-Vis Area",
+    },
+}
+
+_DEFAULT_ITEM = "hard_hat"
+
+
+def _build_prompt(item_key: str, area_label: str) -> tuple[str, str]:
+    """Return (prompt, missing_key) for the configured PPE item."""
+    item = _ITEMS.get(item_key, _ITEMS[_DEFAULT_ITEM])
+    missing_key = item["missing_key"]
+    prompt = f"""\
+You are reviewing a still frame from a worksite security camera.
+The image has a yellow polygon drawn on it labelled "{area_label}" — this is a
+MANDATORY {item["label"].upper()} AREA.
 
 Answer ONLY with a JSON object of this exact shape:
 
 {{
   "people_in_area": <integer>,
-  "people_without_hardhat": <integer>,
+  "{missing_key}": <integer>,
   "violation": <true|false>,
   "confidence": <0.0..1.0>,
   "reasoning": "<one short sentence describing what you see>"
@@ -53,13 +90,13 @@ Answer ONLY with a JSON object of this exact shape:
 
 Rules:
 - Only count people whose body is at least partially INSIDE the yellow polygon.
-- A "hard hat" is a rigid industrial helmet (any solid colour). Beanies,
-  caps, hoods, and hair are NOT hard hats.
-- Set violation = true ONLY if people_without_hardhat >= 1.
+- {item["definition"]}
+- Set violation = true ONLY if {missing_key} >= 1.
 - If no people are inside the polygon, set violation = false and confidence high.
-- If you are unsure whether someone is wearing a hard hat, lower the confidence
-  rather than guessing true.
+- If you are unsure whether someone is wearing a {item["label"]}, lower the
+  confidence rather than guessing true.
 """
+    return prompt, missing_key
 
 
 def _camera_config(serial: str) -> dict[str, Any] | None:
@@ -71,6 +108,10 @@ def _camera_config(serial: str) -> dict[str, Any] | None:
 
 async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot") -> None:
     """Process a single snapshot."""
+    if not is_active(AGENT_NAME):
+        logger.debug("ppe_compliance is passive; skipping %s", serial)
+        return
+
     cfg = _camera_config(serial)
     if not cfg:
         logger.debug("No camera config for %s; skipping ppe_compliance", serial)
@@ -80,6 +121,17 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
     if not area or not area.get("polygon"):
         logger.debug("No ppe_area polygon for %s; skipping", serial)
         return
+
+    item_key = str(area.get("required_item", _DEFAULT_ITEM))
+    if item_key not in _ITEMS:
+        logger.warning(
+            "Unknown ppe_area.required_item=%r for %s; defaulting to %s",
+            item_key,
+            serial,
+            _DEFAULT_ITEM,
+        )
+        item_key = _DEFAULT_ITEM
+    item_label = _ITEMS[item_key]["label"]
 
     cooldown = int(cfg.get("cooldown_seconds", 10))
     now = time.monotonic()
@@ -96,7 +148,7 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
     async with AgentRun(
         AGENT_NAME,
         trigger=trigger,
-        inputs={"serial": serial, "snapshot_path": snapshot_path},
+        inputs={"serial": serial, "snapshot_path": snapshot_path, "required_item": item_key},
     ) as run_ctx:
         try:
             raw = Path(snapshot_path).read_bytes()
@@ -106,27 +158,25 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
             return
 
         polygon = [tuple(p) for p in area["polygon"]]
-        label = area.get("name", "Hard Hat Area")
+        area_label = area.get("name", _ITEMS[item_key]["area_label_default"])
         annotated = draw_zone_overlay(
             raw,
             polygon,  # type: ignore[arg-type]
-            label=label,
+            label=area_label,
             outline=_PPE_OUTLINE,
             fill=_PPE_FILL,
         )
         run_ctx.add_tool_call(
             "draw_zone_overlay",
-            {"polygon_points": len(polygon), "label": label, "colour": "yellow"},
+            {"polygon_points": len(polygon), "label": area_label, "colour": "yellow"},
             {"bytes": len(annotated)},
         )
 
+        prompt, missing_key = _build_prompt(item_key, area_label)
+
         model = get_active_model()
         try:
-            result = await get_provider().analyse_image(
-                annotated,
-                _PROMPT.format(label=label),
-                model_id=model,
-            )
+            result = await get_provider().analyse_image(annotated, prompt, model_id=model)
         except VLMError as e:
             run_ctx.decision = f"VLM error: {e}"
             logger.error("ppe_compliance VLM call failed: %s", e)
@@ -134,7 +184,7 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
 
         run_ctx.add_tool_call(
             "vlm.analyse_image",
-            {"model": model, "prompt_len": len(_PROMPT)},
+            {"model": model, "required_item": item_key},
             {
                 "latency_ms": result.latency_ms,
                 "tokens": (result.prompt_tokens, result.completion_tokens),
@@ -145,38 +195,39 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
         verdict = result.parsed
         violation = bool(verdict.get("violation"))
         confidence = float(verdict.get("confidence", 0))
-        without_hardhat = int(verdict.get("people_without_hardhat", 0))
+        missing = int(verdict.get(missing_key, 0))
         in_area = int(verdict.get("people_in_area", 0))
         reasoning = str(verdict.get("reasoning", ""))[:300]
 
-        if violation and confidence >= 0.5 and without_hardhat >= 1:
+        if violation and confidence >= 0.5 and missing >= 1:
             severity = IncidentSeverity.HIGH if confidence >= 0.85 else IncidentSeverity.MEDIUM
             incident = await create_incident(
                 type=IncidentType.PPE_VIOLATION,
                 severity=severity,
                 summary=(
-                    f"PPE violation in '{label}' on camera {serial}: "
-                    f"{without_hardhat}/{in_area} without hard hat. {reasoning}"
+                    f"PPE violation in '{area_label}' on camera {serial}: "
+                    f"{missing}/{in_area} without {item_label}. {reasoning}"
                 ),
                 camera_id=serial,
                 snapshot_path=snapshot_path,
                 extra={
                     "vlm_model": model,
                     "vlm_confidence": confidence,
+                    "required_item": item_key,
                     "people_in_area": in_area,
-                    "people_without_hardhat": without_hardhat,
+                    "people_missing_item": missing,
                     "vlm_raw": verdict,
                 },
             )
             run_ctx.incident_id = incident.id
             run_ctx.decision = (
-                f"PPE_VIOLATION confirmed (conf={confidence:.2f}, "
-                f"{without_hardhat}/{in_area}) -> incident #{incident.id}"
+                f"PPE_VIOLATION ({item_label}) confirmed "
+                f"(conf={confidence:.2f}, {missing}/{in_area}) -> incident #{incident.id}"
             )
         else:
             run_ctx.decision = (
-                f"cleared: violation={violation}, conf={confidence:.2f}, "
-                f"in_area={in_area}, without_hardhat={without_hardhat}"
+                f"cleared ({item_label}): violation={violation}, conf={confidence:.2f}, "
+                f"in_area={in_area}, missing={missing}"
             )
 
 

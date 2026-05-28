@@ -17,8 +17,10 @@ cameras:
         - [0.4, 0.9]
 
     # Zone where PPE compliance is checked.
+    # required_item: "hard_hat" | "hi_vis_vest"  (default: hard_hat)
     ppe_area:
       name: "Workshop Floor"
+      required_item: "hard_hat"
       polygon:
         - [0.0, 0.4]
         - [0.5, 0.4]
