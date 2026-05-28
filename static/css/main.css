@@ -56,3 +56,27 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 }
 
 #heartbeat-banner { transition: all 0.5s; }
+
+/* Auto-capture pill */
+.auto-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #555;
+  transition: background 0.2s ease;
+}
+.auto-dot.off     { background: #555; }
+.auto-dot.idle    { background: #888; }
+.auto-dot.ok      { background: #28a745; animation: autoPulse 1.2s ease-out 1; }
+.auto-dot.error   { background: #dc3545; }
+.auto-dot.shutoff { background: #ffc107; }
+
+@keyframes autoPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(1); }
+  70%  { box-shadow: 0 0 0 0.6rem rgba(40, 167, 69, 0); transform: scale(1.4); }
+  100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(1); }
+}
+
+#auto-capture-pill.is-running { border-color: #28a745 !important; }
+#auto-capture-pill.is-running #auto-capture-label { color: #28a745 !important; }

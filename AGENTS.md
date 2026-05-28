@@ -51,9 +51,10 @@ config/
 | `heartbeat` | heartbeat agent | dashboard SSE |
 | `agent.trace` | `AgentRun` ctx manager | dashboard SSE, DB writer |
 | `camera.motion` | meraki webhook | (logged; snapshot pipeline handles intrusion) |
-| `camera.snapshot` | `/cameras/{serial}/snapshot` + motion handler | zone_intrusion agent |
+| `camera.snapshot` | `/cameras/{serial}/snapshot` + motion handler + auto-capture loop | zone_intrusion agent, ppe_compliance agent |
 | `network.client` | meraki webhook | rogue_device agent |
 | `agent.invoke.*` | POST /agents/{name}/invoke | named agent |
+| `auto_capture.tick` | auto-capture loop | dashboard SSE (status dot) |
 
 ## VLM / LLM Provider
 - GitHub Models API (OpenAI-compatible): `https://models.github.ai/inference`
@@ -89,6 +90,22 @@ config/
 - Endpoint `GET /cameras/{serial}/zones` returns `{serial, zones: [{id, label, polygon, colour, kind, required_item?}]}`. 404 on unknown serial. Polygons are normalised 0..1 coords; loader falls back to `config/cameras.example.yaml` if real config missing.
 - `static/js/main.js::loadZones()` builds SVG polygons inside `#zone-overlay` (viewBox 0 0 100 100, coords * 100) and renders pills in `#zone-legend`. Overlay revealed only after a snapshot loads.
 - Exclusion zone = red `#ff3c3c` (`kind: "intrusion"`); PPE area = yellow `#ffd200` (`kind: "ppe"`).
+
+## Auto-capture loop
+- `app/services/auto_capture.py` owns one asyncio.Task per camera that polls `fetch_and_persist_snapshot()` on an interval, then publishes `camera.snapshot` with `trigger: "auto"` so the existing agents pick it up. Replaces the need to click *Capture now* — the demo feels agentic without human intervention.
+- State persisted in `Setting` table: `auto_capture.<serial>.enabled` (`"true"`/`"false"`), `auto_capture.<serial>.interval_seconds`.
+- API (all under `/cameras`):
+  - `GET /auto-capture` — list state for every configured camera
+  - `GET /{serial}/auto-capture` — single-camera state (404 unknown serial)
+  - `POST /{serial}/auto-capture` body `{"enabled": bool, "interval_seconds"?: int}` — idempotent; 422 if interval < `MIN_INTERVAL_SECONDS` (2)
+- Defaults: `DEFAULT_INTERVAL_SECONDS = 5`, `MIN_INTERVAL_SECONDS = 2`, `MAX_BACKOFF_SECONDS = 60`, `MAX_RUNTIME_SECONDS = 30*60` (auto-shutoff guard).
+- Safety rails:
+  - Default off on first boot.
+  - **Idle skip**: if every gated agent (`zone_intrusion`, `ppe_compliance`) is passive, the loop publishes `auto_capture.tick` with `status="idle"` and skips the Meraki fetch — no quota burned for snapshots nobody analyses.
+  - **Back-off**: consecutive `MerakiError` doubles the sleep up to 60s; resets on first success.
+  - **Auto-shutoff** at 30 min runtime — persists `enabled=false`, publishes `status="auto-shutoff"`, exits.
+- Lifespan: `auto_capture.restore_on_startup()` re-spawns loops for serials persisted as enabled (interval/clock reset).
+- Dashboard pill in the camera tile header — coloured dot + interval input + Start/Stop button. Pulses green on each successful tick; turns red on error, yellow on auto-shutoff.
 
 ## Webhook setup (Meraki → app)
 - Endpoint: `POST /webhooks/meraki`

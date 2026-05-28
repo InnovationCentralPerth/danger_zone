@@ -77,6 +77,11 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     scheduler.register(60, heartbeat_status)
     await scheduler.start()
 
+    # Restore any persistent auto-capture loops (off by default on first boot).
+    from app.services import auto_capture
+
+    auto_capture.restore_on_startup()
+
     yield
 
     scheduler.stop()
@@ -92,6 +97,7 @@ app = FastAPI(
 
 # Routers (imported here to avoid circular imports)
 from app.api.agents import router as agents_router  # noqa: E402
+from app.api.auto_capture import router as auto_capture_router  # noqa: E402
 from app.api.cameras import router as cameras_router  # noqa: E402
 from app.api.incidents import router as incidents_router  # noqa: E402
 from app.api.models import router as models_router  # noqa: E402
@@ -103,6 +109,7 @@ app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 app.include_router(agents_router, prefix="/agents", tags=["agents"])
 app.include_router(network_router, prefix="/network", tags=["network"])
 app.include_router(cameras_router, prefix="/cameras", tags=["cameras"])
+app.include_router(auto_capture_router, prefix="/cameras", tags=["auto-capture"])
 app.include_router(models_router, prefix="/models", tags=["models"])
 app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(webhook_router, prefix="/webhooks", tags=["webhooks"])
