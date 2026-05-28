@@ -20,6 +20,7 @@ dependencies = [
     "openai>=1.58",          # GitHub Models uses OpenAI-compatible API
     "pillow>=11.0",
     "sse-starlette>=2.1",
+    "meraki>=2.0",
 ]
 
 [project.optional-dependencies]

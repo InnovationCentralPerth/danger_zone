@@ -29,17 +29,27 @@
       </div>
     </div>
 
-    <!-- Camera tile (placeholder for milestone 2) -->
+    <!-- Camera tile -->
     <div class="col-12">
       <div class="card bg-black border-secondary">
-        <div class="card-header border-secondary fw-bold d-flex justify-content-between">
-          <span>Camera Feed</span>
-          <span class="badge bg-warning text-dark">milestone 2</span>
+        <div class="card-header border-secondary fw-bold d-flex justify-content-between align-items-center">
+          <span>Camera Feed <span id="camera-serial" class="text-muted small ms-2"></span></span>
+          <div>
+            <span id="camera-status" class="badge bg-secondary me-2">idle</span>
+            <button id="snapshot-trigger" class="btn btn-sm btn-outline-warning">Capture now</button>
+          </div>
         </div>
-        <div class="card-body camera-placeholder text-center py-5">
-          <div class="display-6 text-secondary mb-2">📷</div>
-          <p class="text-muted mb-0">Live snapshot will appear here when the Meraki client lands.</p>
-          <small class="text-secondary">Camera serial configured in <code>config/cameras.yaml</code></small>
+        <div class="card-body camera-placeholder text-center py-3">
+          <img id="camera-image"
+               src=""
+               alt="Camera snapshot"
+               class="img-fluid rounded camera-snapshot d-none"
+               style="max-height: 50vh;"/>
+          <div id="camera-empty" class="py-5">
+            <div class="display-6 text-secondary mb-2">📷</div>
+            <p class="text-muted mb-0">No snapshot yet. Click <em>Capture now</em>, or wait for a motion event.</p>
+            <small class="text-secondary">Camera serial configured in <code>config/cameras.yaml</code></small>
+          </div>
         </div>
       </div>
     </div>
