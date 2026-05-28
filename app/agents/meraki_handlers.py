@@ -11,7 +11,6 @@ import logging
 from datetime import datetime
 
 from app.integrations.meraki import MerakiError, fetch_and_persist_snapshot
-from app.models.db import IncidentSeverity, IncidentType
 from app.runtime.bus import bus
 
 logger = logging.getLogger(__name__)
@@ -35,6 +34,8 @@ async def _on_camera_motion() -> None:
 
         try:
             path = await fetch_and_persist_snapshot(serial)
+            # Real agents (zone_intrusion, ppe_compliance) subscribe to
+            # camera.snapshot — they decide whether anything is worth filing.
             await bus.publish(
                 "camera.snapshot",
                 {
@@ -42,19 +43,6 @@ async def _on_camera_motion() -> None:
                     "path": str(path),
                     "timestamp": datetime.utcnow().isoformat(),
                     "trigger": "motion",
-                },
-            )
-            # Milestone 1 baseline: surface motion as a low-severity incident
-            # so something visible happens until real agents land in M3.
-            await bus.publish(
-                "incident.new",
-                {
-                    "type": IncidentType.INTRUSION.value,
-                    "severity": IncidentSeverity.LOW.value,
-                    "summary": f"Motion detected on camera {serial}; snapshot captured.",
-                    "camera_id": serial,
-                    "snapshot_path": str(path),
-                    "timestamp": datetime.utcnow().isoformat(),
                 },
             )
         except MerakiError as e:

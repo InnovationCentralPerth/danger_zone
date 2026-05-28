@@ -38,14 +38,15 @@ function refreshSnapshot() {
   const img = document.getElementById('camera-image');
   const empty = document.getElementById('camera-empty');
   const url = `/cameras/${cameraSerial}/snapshot/latest?ts=${Date.now()}`;
-  // probe first to avoid flashing a broken image
-  fetch(url, { method: 'HEAD' }).then((r) => {
-    if (r.ok) {
-      img.src = url;
-      img.classList.remove('d-none');
-      empty.classList.add('d-none');
-    }
-  }).catch(() => {});
+  // Use Image() loader (HEAD probe doesn't work with FastAPI FileResponse).
+  const probe = new Image();
+  probe.onload = () => {
+    img.src = url;
+    img.classList.remove('d-none');
+    empty.classList.add('d-none');
+  };
+  probe.onerror = () => { /* no snapshot yet — keep placeholder */ };
+  probe.src = url;
 }
 
 async function captureNow() {
@@ -76,8 +77,49 @@ async function captureNow() {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadConfiguredCamera();
+  loadModels();
   document.getElementById('snapshot-trigger').addEventListener('click', captureNow);
+  document.getElementById('model-select').addEventListener('change', changeModel);
 });
+
+// ---- model picker ---------------------------------------------------------
+
+async function loadModels() {
+  const sel = document.getElementById('model-select');
+  try {
+    const [modelsR, activeR] = await Promise.all([
+      fetch('/models/'),
+      fetch('/models/active'),
+    ]);
+    const models = await modelsR.json();
+    const active = (await activeR.json()).id;
+    sel.innerHTML = '';
+    for (const m of models) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = `${m.label}${m.vision ? '' : ' (text)'}`;
+      if (m.id === active) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  } catch (e) {
+    console.error('Failed to load models', e);
+    sel.innerHTML = '<option value="">error</option>';
+  }
+}
+
+async function changeModel(e) {
+  const id = e.target.value;
+  if (!id) return;
+  try {
+    await fetch('/models/active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+  } catch (err) {
+    console.error('Failed to switch model', err);
+  }
+}
 
 // New snapshots pushed via SSE (e.g. from motion handler)
 evtSource.addEventListener('camera_snapshot', (e) => {

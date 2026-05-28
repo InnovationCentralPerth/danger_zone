@@ -65,6 +65,11 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
 
     start_subscribers()
 
+    # Start the zone intrusion agent (subscribes to camera.snapshot)
+    from app.agents import zone_intrusion
+
+    zone_intrusion.start()
+
     # Schedule demo agents (milestone 1 — replace with real agents later)
     if settings.debug:
         scheduler.register(15, fire_demo_incident)
@@ -88,6 +93,7 @@ app = FastAPI(
 from app.api.agents import router as agents_router  # noqa: E402
 from app.api.cameras import router as cameras_router  # noqa: E402
 from app.api.incidents import router as incidents_router  # noqa: E402
+from app.api.models import router as models_router  # noqa: E402
 from app.api.network import router as network_router  # noqa: E402
 from app.dashboard.routes import router as dashboard_router  # noqa: E402
 from app.webhooks.meraki import router as webhook_router  # noqa: E402
@@ -96,6 +102,7 @@ app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 app.include_router(agents_router, prefix="/agents", tags=["agents"])
 app.include_router(network_router, prefix="/network", tags=["network"])
 app.include_router(cameras_router, prefix="/cameras", tags=["cameras"])
+app.include_router(models_router, prefix="/models", tags=["models"])
 app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(webhook_router, prefix="/webhooks", tags=["webhooks"])
 
