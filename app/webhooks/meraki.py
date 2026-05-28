@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 def _verify_signature(body: bytes, signature: str, secret: str) -> bool:
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature.lstrip("sha256="))
+    # Meraki may send "sha256=<hex>" or just "<hex>"; use removeprefix (not lstrip).
+    received = signature.removeprefix("sha256=")
+    return hmac.compare_digest(expected, received)
 
 
 @router.post("/meraki", summary="Receive Meraki webhook events")

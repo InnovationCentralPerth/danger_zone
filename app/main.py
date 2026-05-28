@@ -36,8 +36,36 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     logger.info("Starting danger_zone…")
     _init_db()
 
-    # Schedule demo agents (milestone 1 — replace with real agents later)
     settings = get_settings()
+
+    # Verify Meraki API key is read-only at the org level — hard fail if not.
+    # Skipped when MERAKI_API_KEY is empty (e.g. local UI-only development).
+    if settings.meraki_api_key and settings.meraki_org_id:
+        from app.integrations.meraki import MerakiError, WriteScopedKeyError, get_client
+
+        try:
+            await get_client().assert_read_only()
+        except WriteScopedKeyError as e:
+            if settings.meraki_allow_write_key:
+                logger.warning("MERAKI_ALLOW_WRITE_KEY=true — bypassing safety check: %s", e)
+            else:
+                logger.error("Meraki key check failed: %s", e)
+                raise
+        except MerakiError as e:
+            logger.error("Meraki key check failed: %s", e)
+            raise
+    else:
+        logger.warning(
+            "MERAKI_API_KEY / MERAKI_ORG_ID not set — Meraki integration disabled. "
+            "Webhooks and snapshot fetches will not work."
+        )
+
+    # Wire real webhook handlers to the bus
+    from app.agents.meraki_handlers import start_subscribers
+
+    start_subscribers()
+
+    # Schedule demo agents (milestone 1 — replace with real agents later)
     if settings.debug:
         scheduler.register(15, fire_demo_incident)
     scheduler.register(60, heartbeat_status)

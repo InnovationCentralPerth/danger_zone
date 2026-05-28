@@ -28,8 +28,9 @@ app/
   db.py              — SQLite engine singleton (set during lifespan)
   api/               — REST routers: incidents, agents, cameras, network
   dashboard/         — HTMX + Jinja2 templates + SSE endpoint (/events)
-  agents/            — One module per agent; demo.py fires synthetic events
-  integrations/      — meraki.py (stub), vlm.py (stub) — real in milestone 2+
+  agents/            — One module per agent; demo.py fires synthetic events,
+                       meraki_handlers.py subscribes to camera/network bus events
+  integrations/      — meraki.py (real, milestone 2), vlm.py (stub until M3)
   services/          — config_loader.py reads config/*.yaml
   models/db.py       — SQLModel tables: Incident, AgentTrace, Device, Setting
   runtime/
@@ -68,10 +69,12 @@ config/
 ## Webhook setup (Meraki → app)
 - Endpoint: `POST /webhooks/meraki`
 - Signature verification: HMAC-SHA256; set `MERAKI_WEBHOOK_SECRET` to the Meraki shared secret
-- For local dev: `tailscale funnel 8000` to expose a public HTTPS URL
+- Header may be `sha256=<hex>` or just `<hex>` — use `removeprefix` not `lstrip`
+- For local dev: `tailscale funnel 8001` to expose a public HTTPS URL
 
 ## Required env vars (see `.env.example`)
 - `MERAKI_API_KEY`, `MERAKI_ORG_ID`, `MERAKI_WEBHOOK_SECRET`
+- `MERAKI_ALLOW_WRITE_KEY=true` to bypass the read-only-key safety check (dev only)
 - `GITHUB_TOKEN`, `MODEL_ID` (default: `openai/gpt-4o-mini`)
 - `API_KEY` (for external agent auth)
 - `DEBUG=true` enables demo agent (fires synthetic incidents every 15s)
@@ -89,8 +92,8 @@ config/
 
 ## Milestones / Branch Workflow
 Each milestone is built on its own branch, PR'd into `main` on completion:
-1. `feat/skeleton` — current: FastAPI + bus + scheduler + demo agent + HTMX dashboard (done)
-2. `feat/meraki-client` — Meraki API client, webhook receiver, snapshot fetch
+1. `feat/skeleton` — FastAPI + bus + scheduler + demo agent + HTMX dashboard (done)
+2. `feat/meraki-client` — Meraki SDK client, snapshot fetch+persist, camera tile, webhook→bus wiring (done)
 3. `feat/vlm-zone-intrusion` — VLM adapter + Agent A (zone intrusion)
 4. `feat/ppe-compliance` — Agent B
 5. `feat/rogue-device` — Agent C + whitelist UI

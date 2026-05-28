@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     meraki_api_key: str = ""
     meraki_org_id: str = ""
     meraki_webhook_secret: str = ""
+    # Safety: refuse to start if Meraki key has write scope.
+    # Set to true ONLY for local dev where you can't easily create a read-only admin.
+    meraki_allow_write_key: bool = False
 
     # GitHub Models
     github_token: str = ""
