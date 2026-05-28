@@ -117,6 +117,7 @@ config/
 - `MERAKI_API_KEY`, `MERAKI_ORG_ID`, `MERAKI_WEBHOOK_SECRET`
 - `MERAKI_ALLOW_WRITE_KEY=true` to bypass the read-only-key safety check (dev only)
 - `GITHUB_TOKEN`, `MODEL_ID` (default: `openai/gpt-4o-mini`)
+  - Get a token via the device flow helper: `python scripts/gh_device_login.py` — runs the standard GitHub OAuth 2.0 device flow, prints a user code, polls for the access token, and writes it into `.env`. Default client_id is the public gh CLI one; override with `--client-id` or `GITHUB_OAUTH_CLIENT_ID` env var. Restart the server afterwards.
 - `API_KEY` (for external agent auth)
 - `DEBUG=true` enables verbose logging / FastAPI debug
 - `DEMO_AGENT=true` runs the synthetic demo agent (fires fake incidents every 15s). Decoupled from `DEBUG` so you can run verbose logs against the real camera without synthetic noise.
