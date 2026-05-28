@@ -16,6 +16,7 @@ from typing import Any
 
 import httpx
 import meraki
+from meraki.exceptions import APIError as MerakiSDKAPIError
 
 from app.config import get_settings
 
@@ -53,7 +54,18 @@ class MerakiClient:
     # ---- async wrappers around blocking SDK calls -------------------------
 
     async def _run(self, fn, *args, **kwargs):  # type: ignore[no-untyped-def]
-        return await asyncio.to_thread(fn, *args, **kwargs)
+        """Run a blocking SDK call in a thread, normalising SDK errors.
+
+        Meraki's SDK raises ``meraki.exceptions.APIError`` for 4xx/5xx; we
+        convert those to ``MerakiError`` so callers (and FastAPI handlers)
+        only need to catch one type.
+        """
+        try:
+            return await asyncio.to_thread(fn, *args, **kwargs)
+        except MerakiSDKAPIError as e:
+            # The SDK's APIError stringifies to e.g.
+            # "camera, generateDeviceCameraSnapshot - 404 Not Found, ..."
+            raise MerakiError(str(e)) from e
 
     # ---- startup safety check --------------------------------------------
 
