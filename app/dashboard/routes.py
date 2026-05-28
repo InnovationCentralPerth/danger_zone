@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @router.get("/events", include_in_schema=False)
@@ -38,7 +38,7 @@ async def sse_events(request: Request) -> EventSourceResponse:
                         "event": event.topic.replace(".", "_"),
                         "data": json.dumps(event.payload, default=str),
                     }
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send keepalive comment
                     yield {"event": "ping", "data": datetime.utcnow().isoformat()}
         finally:

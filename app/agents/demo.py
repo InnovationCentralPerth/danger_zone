@@ -25,7 +25,9 @@ _DEMO_SCENARIOS = [
     {
         "type": IncidentType.ROGUE_DEVICE,
         "severity": IncidentSeverity.HIGH,
-        "summary": "[DEMO] Unknown device connected to Corp WiFi. MAC: de:ad:be:ef:00:01 (OUI: Unknown).",
+        "summary": (
+            "[DEMO] Unknown device connected to Corp WiFi. MAC: de:ad:be:ef:00:01 (OUI: Unknown)."
+        ),
         "client_mac": "de:ad:be:ef:00:01",
     },
 ]

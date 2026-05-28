@@ -16,6 +16,7 @@ class CameraInfo(BaseModel):
 async def list_cameras() -> list[CameraInfo]:
     # Reads from cameras.yaml — real impl in milestone 2
     from app.services.config_loader import load_cameras
+
     cameras = load_cameras()
     return [CameraInfo(serial=c["serial"], name=c["name"], location=c["location"]) for c in cameras]
 

@@ -27,14 +27,15 @@ async def receive_meraki_webhook(
     settings = get_settings()
     body = await request.body()
 
-    if settings.meraki_webhook_secret:
-        if not _verify_signature(body, x_cisco_meraki_signature, settings.meraki_webhook_secret):
-            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    if settings.meraki_webhook_secret and not _verify_signature(
+        body, x_cisco_meraki_signature, settings.meraki_webhook_secret
+    ):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     try:
         payload = json.loads(body)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail="Invalid JSON") from e
 
     alert_type = payload.get("alertType", "unknown")
     logger.info("Meraki webhook received: %s", alert_type)

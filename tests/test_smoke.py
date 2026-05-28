@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
-from app.main import app, _init_db
+from app.main import _init_db, app
 
 
 @pytest.fixture(autouse=True)
@@ -13,6 +13,7 @@ def init_test_db(tmp_path, monkeypatch):
     monkeypatch.setenv("DEBUG", "false")
     # Reset settings cache so env override takes effect
     from app import config
+
     config.get_settings.cache_clear()
     _init_db()
 

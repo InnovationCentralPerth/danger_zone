@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select
 
 from app.db import get_session
@@ -14,10 +13,10 @@ router = APIRouter()
 
 @router.get("/", summary="List incidents")
 async def list_incidents(
-    since: Optional[datetime] = None,
-    type: Optional[IncidentType] = None,
-    status: Optional[IncidentStatus] = None,
-    camera_id: Optional[str] = None,
+    since: datetime | None = None,
+    type: IncidentType | None = None,
+    status: IncidentStatus | None = None,
+    camera_id: str | None = None,
     limit: int = Query(50, le=200),
 ) -> list[Incident]:
     with get_session() as session:

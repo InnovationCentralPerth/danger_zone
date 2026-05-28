@@ -4,14 +4,15 @@
 `danger_zone` — Agentic AI security demonstrator using Meraki cameras and network. FastAPI backend, HTMX dashboard, SQLite persistence. Proactive (event-triggered) agents detect zone intrusions, PPE violations, and rogue network devices.
 
 ## Language / Runtime
-- Python 3.12, `uv` for env and lockfile management
+- Python 3.12 (pinned via `.python-version` and `requires-python = ">=3.12,<3.13"`; do not use 3.13/3.14 — some deps lack wheels or behave differently)
+- `uv` for env and lockfile management
 
 ## Key Commands
 
 | Task | Command |
 |------|---------|
-| Install deps | `uv pip install -e ".[dev]"` |
-| Run dev server | `DEBUG=true uvicorn app.main:app --reload` |
+| First-time setup | `uv venv --python 3.12 && source .venv/bin/activate && uv pip install -e ".[dev]"` |
+| Run dev server | `DEBUG=true uvicorn app.main:app --reload --port 8001` |
 | Run tests | `pytest -x` |
 | Lint | `ruff check .` |
 | Format | `ruff format .` |
