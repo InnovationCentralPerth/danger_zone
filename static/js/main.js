@@ -34,6 +34,7 @@ async function loadConfiguredCamera() {
         `${cams[0].name} (${cameraSerial})`;
       refreshSnapshot();  // try to show whatever's on disk
       loadZones();
+      loadAutoCaptureState();
     }
   } catch (e) { console.error('Failed to load camera config', e); }
 }
@@ -125,6 +126,92 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAgentModes();
   document.getElementById('snapshot-trigger').addEventListener('click', captureNow);
   document.getElementById('model-select').addEventListener('change', changeModel);
+  document.getElementById('auto-capture-toggle').addEventListener('click', toggleAutoCapture);
+});
+
+// ---- auto-capture loop ----------------------------------------------------
+
+let autoCaptureRunning = false;
+let autoDotResetTimer = null;
+
+async function loadAutoCaptureState() {
+  if (!cameraSerial) return;
+  try {
+    const r = await fetch(`/cameras/${cameraSerial}/auto-capture`);
+    if (!r.ok) return;
+    renderAutoCaptureState(await r.json());
+  } catch (e) {
+    console.error('Failed to load auto-capture state', e);
+  }
+}
+
+function renderAutoCaptureState(state) {
+  autoCaptureRunning = !!state.running;
+  const pill = document.getElementById('auto-capture-pill');
+  const dot = document.getElementById('auto-capture-dot');
+  const label = document.getElementById('auto-capture-label');
+  const intervalInput = document.getElementById('auto-capture-interval');
+  const btn = document.getElementById('auto-capture-toggle');
+
+  intervalInput.value = state.interval_seconds;
+  if (state.running) {
+    pill.classList.add('is-running');
+    const mins = Math.floor(state.running_for_seconds / 60);
+    const secs = state.running_for_seconds % 60;
+    label.textContent = `Auto: on (${mins}m${secs.toString().padStart(2, '0')}s)`;
+    btn.textContent = 'Stop';
+    btn.classList.remove('btn-outline-warning');
+    btn.classList.add('btn-outline-danger');
+    dot.className = `auto-dot ${state.last_status === 'ok' ? 'ok' : state.last_status === 'error' ? 'error' : state.last_status === 'idle' ? 'idle' : ''}`;
+  } else {
+    pill.classList.remove('is-running');
+    label.textContent = state.last_status === 'auto-shutoff' ? 'Auto: shutoff' : 'Auto: off';
+    btn.textContent = 'Start';
+    btn.classList.add('btn-outline-warning');
+    btn.classList.remove('btn-outline-danger');
+    dot.className = state.last_status === 'auto-shutoff' ? 'auto-dot shutoff' : 'auto-dot off';
+  }
+}
+
+async function toggleAutoCapture() {
+  if (!cameraSerial) return;
+  const interval = parseInt(document.getElementById('auto-capture-interval').value, 10) || 5;
+  const body = { enabled: !autoCaptureRunning, interval_seconds: interval };
+  try {
+    const r = await fetch(`/cameras/${cameraSerial}/auto-capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) renderAutoCaptureState(await r.json());
+  } catch (e) {
+    console.error('Failed to toggle auto-capture', e);
+  }
+}
+
+// Re-load state once a second while running, so the running-for clock ticks.
+setInterval(() => { if (autoCaptureRunning) loadAutoCaptureState(); }, 1000);
+
+evtSource.addEventListener('auto_capture_tick', (e) => {
+  const d = JSON.parse(e.data);
+  if (cameraSerial && d.serial !== cameraSerial) return;
+  const dot = document.getElementById('auto-capture-dot');
+  const cls = d.status === 'ok' ? 'ok'
+            : d.status === 'error' ? 'error'
+            : d.status === 'auto-shutoff' ? 'shutoff'
+            : d.status === 'idle' ? 'idle'
+            : 'off';
+  dot.className = `auto-dot ${cls}`;
+  if (autoDotResetTimer) clearTimeout(autoDotResetTimer);
+  // Re-trigger the pulse animation by re-adding the ok class
+  if (cls === 'ok') {
+    autoDotResetTimer = setTimeout(() => {
+      dot.classList.remove('ok');
+      void dot.offsetWidth;
+      dot.classList.add('ok');
+    }, 50);
+  }
+  if (d.status === 'auto-shutoff') loadAutoCaptureState();
 });
 
 // ---- agent active/passive toggles -----------------------------------------

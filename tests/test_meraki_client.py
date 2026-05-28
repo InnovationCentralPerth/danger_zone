@@ -65,3 +65,82 @@ def test_snapshot_path_layout(tmp_path, monkeypatch):
     p = mod.snapshot_path_for("AAAA-BBBB", ts=ts)
     assert p.parent == tmp_path / "snapshots/2026/05/28"
     assert p.name.startswith("AAAA-BBBB_103000")
+
+
+async def test_fetch_snapshot_tolerates_400_during_polling(monkeypatch):
+    """Older MV cameras return 400 (not 404) while the snapshot warms up.
+
+    fetch_snapshot must keep polling on 400/403/404 and only succeed when
+    the CDN serves a real 200.
+    """
+    import httpx
+
+    client = _make_client(
+        monkeypatch,
+        me={"email": "bot@example.com"},
+        admins=[{"email": "bot@example.com", "orgAccess": "read-only"}],
+    )
+    client._sdk.camera.generateDeviceCameraSnapshot.return_value = {
+        "url": "https://spn34.meraki.com/stream/jpeg/snapshot/xyz"
+    }
+
+    # First two polls return 400, third returns 200 with image bytes.
+    call = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        call["n"] += 1
+        if call["n"] < 3:
+            return httpx.Response(400, text="<html>400 Bad Request</html>")
+        return httpx.Response(200, content=b"\xff\xd8\xff\xe0jpegbytes")
+
+    transport = httpx.MockTransport(handler)
+    real_client_cls = httpx.AsyncClient
+
+    def make_client(*_a, **kwargs):
+        kwargs.pop("transport", None)
+        return real_client_cls(transport=transport, **kwargs)
+
+    monkeypatch.setattr(mod.httpx, "AsyncClient", make_client)
+
+    data = await client.fetch_snapshot(
+        "AAAA-BBBB",
+        max_wait_seconds=5,
+        poll_interval=0.05,
+        initial_delay=0.0,
+    )
+    assert data.startswith(b"\xff\xd8")
+    assert call["n"] == 3
+
+
+async def test_fetch_snapshot_raises_on_persistent_4xx(monkeypatch):
+    """If the CDN never serves a 200 within the deadline, raise MerakiError."""
+    import httpx
+
+    client = _make_client(
+        monkeypatch,
+        me={"email": "bot@example.com"},
+        admins=[{"email": "bot@example.com", "orgAccess": "read-only"}],
+    )
+    client._sdk.camera.generateDeviceCameraSnapshot.return_value = {
+        "url": "https://spn34.meraki.com/stream/jpeg/snapshot/xyz"
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, text="<html>still warming up</html>")
+
+    transport = httpx.MockTransport(handler)
+    real_client_cls = httpx.AsyncClient
+
+    def make_client(*_a, **kwargs):
+        kwargs.pop("transport", None)
+        return real_client_cls(transport=transport, **kwargs)
+
+    monkeypatch.setattr(mod.httpx, "AsyncClient", make_client)
+
+    with pytest.raises(MerakiError, match="not ready after"):
+        await client.fetch_snapshot(
+            "AAAA-BBBB",
+            max_wait_seconds=0.2,
+            poll_interval=0.05,
+            initial_delay=0.0,
+        )

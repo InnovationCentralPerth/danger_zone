@@ -39,10 +39,19 @@
     <!-- Camera tile -->
     <div class="col-12">
       <div class="card bg-black border-secondary">
-        <div class="card-header border-secondary fw-bold d-flex justify-content-between align-items-center">
+        <div class="card-header border-secondary fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
           <span>Camera Feed <span id="camera-serial" class="text-muted small ms-2"></span></span>
-          <div>
-            <span id="camera-status" class="badge bg-secondary me-2">idle</span>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span id="camera-status" class="badge bg-secondary">idle</span>
+            <div id="auto-capture-pill" class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded border border-secondary small" title="Auto-capture loop">
+              <span id="auto-capture-dot" class="auto-dot off"></span>
+              <span id="auto-capture-label" class="text-muted">Auto: off</span>
+              <input id="auto-capture-interval" type="number" min="2" max="120" step="1" value="5"
+                     class="form-control form-control-sm bg-dark text-light border-secondary ms-1"
+                     style="width: 4rem;" title="Interval (seconds)"/>
+              <span class="text-muted">s</span>
+              <button id="auto-capture-toggle" class="btn btn-sm btn-outline-warning ms-1">Start</button>
+            </div>
             <button id="snapshot-trigger" class="btn btn-sm btn-outline-warning">Capture now</button>
           </div>
         </div>
@@ -61,7 +70,7 @@
           </div>
           <div id="camera-empty" class="py-5">
             <div class="display-6 text-secondary mb-2">📷</div>
-            <p class="text-muted mb-0">No snapshot yet. Click <em>Capture now</em>, or wait for a motion event.</p>
+            <p class="text-muted mb-0">No snapshot yet. Click <em>Capture now</em>, flip on <em>Auto-capture</em>, or wait for a motion event.</p>
             <small class="text-secondary">Camera serial configured in <code>config/cameras.yaml</code></small>
           </div>
           <div id="zone-legend" class="mt-2 small text-start ps-2 d-none"></div>
