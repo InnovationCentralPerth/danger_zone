@@ -12,7 +12,7 @@
 | Task | Command |
 |------|---------|
 | First-time setup | `uv venv --python 3.12 && source .venv/bin/activate && uv pip install -e ".[dev]"` |
-| Run dev server | `DEBUG=true uvicorn app.main:app --reload` |
+| Run dev server | `DEBUG=true uvicorn app.main:app --reload --port 8001` |
 | Run tests | `pytest -x` |
 | Lint | `ruff check .` |
 | Format | `ruff format .` |
