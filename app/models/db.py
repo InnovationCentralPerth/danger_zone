@@ -11,11 +11,13 @@ from sqlmodel import Field, SQLModel
 class IncidentType(StrEnum):
     INTRUSION = "INTRUSION"
     PPE_VIOLATION = "PPE_VIOLATION"
+    PPE_OK = "PPE_OK"
     ROGUE_DEVICE = "ROGUE_DEVICE"
     DEMO = "DEMO"
 
 
 class IncidentSeverity(StrEnum):
+    INFO = "INFO"
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"

@@ -79,6 +79,16 @@ config/
 - `cameras.yaml` → `ppe_area.required_item` controls what Agent B checks for
 - Currently supported: `"hard_hat"` (default) and `"hi_vis_vest"`
 - Add more by extending `_ITEMS` in `app/agents/ppe_compliance.py` (label, missing-count JSON key, definition string for the prompt)
+- **Three-way verdict** in `app/agents/ppe_compliance.py::run`:
+  - `violation && conf>=0.5 && missing>=1` → `PPE_VIOLATION` (HIGH if conf>=0.85 else MEDIUM)
+  - `in_area>=1 && missing==0 && conf>=0.5` → `PPE_OK` (INFO) compliance note
+  - otherwise (nobody in area, or low confidence) → silent (trace only, no incident)
+- INFO incidents do NOT bump the dashboard's red live-incident counter; rendered as muted grey cards. `NON_ALERT_SEVERITIES = {'INFO'}` in `static/js/main.js`.
+
+## Dashboard zone overlay
+- Endpoint `GET /cameras/{serial}/zones` returns `{serial, zones: [{id, label, polygon, colour, kind, required_item?}]}`. 404 on unknown serial. Polygons are normalised 0..1 coords; loader falls back to `config/cameras.example.yaml` if real config missing.
+- `static/js/main.js::loadZones()` builds SVG polygons inside `#zone-overlay` (viewBox 0 0 100 100, coords * 100) and renders pills in `#zone-legend`. Overlay revealed only after a snapshot loads.
+- Exclusion zone = red `#ff3c3c` (`kind: "intrusion"`); PPE area = yellow `#ffd200` (`kind: "ppe"`).
 
 ## Webhook setup (Meraki → app)
 - Endpoint: `POST /webhooks/meraki`
@@ -91,7 +101,8 @@ config/
 - `MERAKI_ALLOW_WRITE_KEY=true` to bypass the read-only-key safety check (dev only)
 - `GITHUB_TOKEN`, `MODEL_ID` (default: `openai/gpt-4o-mini`)
 - `API_KEY` (for external agent auth)
-- `DEBUG=true` enables demo agent (fires synthetic incidents every 15s)
+- `DEBUG=true` enables verbose logging / FastAPI debug
+- `DEMO_AGENT=true` runs the synthetic demo agent (fires fake incidents every 15s). Decoupled from `DEBUG` so you can run verbose logs against the real camera without synthetic noise.
 
 ## Config files
 - `config/cameras.yaml` — **gitignored**; copy from `config/cameras.example.yaml`. Camera serial, network_id, exclusion zone polygon (normalised 0–1 coords), PPE area polygon, cooldown_seconds. Loader falls back to the `.example.yaml` if the real file is missing.
