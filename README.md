@@ -63,6 +63,15 @@ Features are developed on `feat/<name>` branches and PR'd into `main`:
 
 ## Configuration
 
-- `config/cameras.yaml` — camera serial, exclusion zone + PPE area polygons (normalised 0–1 coords)
+Site-specific config files are **gitignored**. Copy the templates first:
+
+```bash
+cp config/cameras.example.yaml   config/cameras.yaml
+cp config/whitelist.example.yaml config/whitelist.yaml
+```
+
+Then edit:
+
+- `config/cameras.yaml` — camera serial, network ID, exclusion zone + PPE area polygons (normalised 0–1 coords)
 - `config/whitelist.yaml` — MAC whitelist and blacklist
-- `config/models.yaml` — VLM model catalogue; set `default` to choose startup model
+- `config/models.yaml` — VLM model catalogue; set `default` to choose startup model (this one is checked in — it's not site-specific)
