@@ -108,11 +108,35 @@ async def test_medium_severity_when_lower_confidence(tmp_path):
     assert ci.await_args.kwargs["severity"].value == "MEDIUM"
 
 
-async def test_no_incident_when_violation_false(tmp_path):
+async def test_files_ppe_ok_when_compliant(tmp_path):
+    """Person present, wearing PPE, high confidence -> PPE_OK / INFO."""
     snap = _write_snapshot(tmp_path)
     mock_provider = MagicMock()
     mock_provider.analyse_image = AsyncMock(
         return_value=_vlm_result(False, 0.95, in_area=2, without=0)
+    )
+
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=11)
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="test")
+
+    ci.assert_awaited_once()
+    kwargs = ci.await_args.kwargs
+    assert kwargs["type"] == IncidentType.PPE_OK
+    assert kwargs["severity"].value == "INFO"
+    assert kwargs["extra"]["people_in_area"] == 2
+
+
+async def test_silent_when_nobody_in_area(tmp_path):
+    """No people in the PPE area -> no incident, no PPE_OK note."""
+    snap = _write_snapshot(tmp_path)
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_vlm_result(False, 0.95, in_area=0, without=0)
     )
 
     with (
@@ -140,8 +164,8 @@ async def test_no_incident_when_low_confidence(tmp_path):
     ci.assert_not_awaited()
 
 
-async def test_no_incident_when_nobody_without_hardhat(tmp_path):
-    """Guards against a model that says violation=true but reports 0 missing hats."""
+async def test_files_ppe_ok_when_violation_flag_wrong_but_zero_missing(tmp_path):
+    """Model says violation=true but reports 0 missing -> treat as compliant PPE_OK."""
     snap = _write_snapshot(tmp_path)
     mock_provider = MagicMock()
     mock_provider.analyse_image = AsyncMock(
@@ -153,9 +177,11 @@ async def test_no_incident_when_nobody_without_hardhat(tmp_path):
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
+        ci.return_value = MagicMock(id=12)
         await ppe_compliance.run("TEST-SERIAL", snap, trigger="test")
 
-    ci.assert_not_awaited()
+    ci.assert_awaited_once()
+    assert ci.await_args.kwargs["type"] == IncidentType.PPE_OK
 
 
 async def test_cooldown_blocks_second_run(tmp_path):

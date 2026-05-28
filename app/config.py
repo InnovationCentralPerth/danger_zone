@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     api_key: str = "changeme"
     secret_key: str = "changeme"
     debug: bool = False
+    # Decoupled from DEBUG so you can run real data with verbose logging.
+    # When true, app/agents/demo.py fires synthetic incidents every 15s.
+    demo_agent: bool = False
 
     # Storage
     data_dir: Path = Path("data")

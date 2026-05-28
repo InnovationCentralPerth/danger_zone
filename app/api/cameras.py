@@ -66,6 +66,47 @@ async def trigger_snapshot(serial: str, analyse: bool = True) -> dict[str, str]:
     return {"status": "ok", "path": str(path)}
 
 
+@router.get("/{serial}/zones", summary="Get monitored zones for a camera")
+async def get_camera_zones(serial: str) -> dict:
+    """Return polygon definitions so the dashboard can draw an overlay.
+
+    Coordinates are normalised (0..1) (x, y) from the snapshot's top-left.
+    Suitable for direct rendering as SVG polygons with a viewBox of 0..1
+    (or scaled to 100 for percentage convenience).
+    """
+    from app.services.config_loader import load_cameras
+
+    cam = next((c for c in load_cameras() if c.get("serial") == serial), None)
+    if cam is None:
+        raise HTTPException(status_code=404, detail=f"Unknown camera serial: {serial}")
+
+    zones: list[dict] = []
+    excl = cam.get("exclusion_zone") or {}
+    if excl.get("polygon"):
+        zones.append(
+            {
+                "id": "exclusion_zone",
+                "label": excl.get("name", "Restricted Area"),
+                "polygon": excl["polygon"],
+                "colour": "#ff3c3c",
+                "kind": "intrusion",
+            }
+        )
+    ppe = cam.get("ppe_area") or {}
+    if ppe.get("polygon"):
+        zones.append(
+            {
+                "id": "ppe_area",
+                "label": ppe.get("name", "PPE Area"),
+                "polygon": ppe["polygon"],
+                "colour": "#ffd200",
+                "kind": "ppe",
+                "required_item": ppe.get("required_item", "hard_hat"),
+            }
+        )
+    return {"serial": serial, "zones": zones}
+
+
 @router.get("/{serial}/snapshot/latest", summary="Get the most recent snapshot file")
 async def get_latest_snapshot(serial: str) -> FileResponse:
     """Return the newest snapshot on disk for a given camera serial."""

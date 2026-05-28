@@ -71,8 +71,8 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     zone_intrusion.start()
     ppe_compliance.start()
 
-    # Schedule demo agents (milestone 1 — replace with real agents later)
-    if settings.debug:
+    # Synthetic demo agent — off by default. Enable with DEMO_AGENT=true.
+    if settings.demo_agent:
         scheduler.register(15, fire_demo_incident)
     scheduler.register(60, heartbeat_status)
     await scheduler.start()

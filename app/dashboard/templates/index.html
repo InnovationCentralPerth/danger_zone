@@ -47,16 +47,24 @@
           </div>
         </div>
         <div class="card-body camera-placeholder text-center py-3">
-          <img id="camera-image"
-               src=""
-               alt="Camera snapshot"
-               class="img-fluid rounded camera-snapshot d-none"
-               style="max-height: 50vh;"/>
+          <div id="camera-image-wrap" class="position-relative d-inline-block">
+            <img id="camera-image"
+                 src=""
+                 alt="Camera snapshot"
+                 class="img-fluid rounded camera-snapshot d-none"
+                 style="max-height: 50vh;"/>
+            <svg id="zone-overlay"
+                 class="position-absolute top-0 start-0 w-100 h-100 d-none"
+                 viewBox="0 0 100 100"
+                 preserveAspectRatio="none"
+                 style="pointer-events: none;"></svg>
+          </div>
           <div id="camera-empty" class="py-5">
             <div class="display-6 text-secondary mb-2">📷</div>
             <p class="text-muted mb-0">No snapshot yet. Click <em>Capture now</em>, or wait for a motion event.</p>
             <small class="text-secondary">Camera serial configured in <code>config/cameras.yaml</code></small>
           </div>
+          <div id="zone-legend" class="mt-2 small text-start ps-2 d-none"></div>
         </div>
       </div>
     </div>

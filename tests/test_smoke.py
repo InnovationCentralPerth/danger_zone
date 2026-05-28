@@ -36,3 +36,13 @@ async def test_list_incidents_empty():
         r = await ac.get("/incidents/")
     assert r.status_code == 200
     assert r.json() == []
+
+
+async def test_dashboard_renders_zone_overlay_markup():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/")
+    assert r.status_code == 200
+    body = r.text
+    assert 'id="zone-overlay"' in body
+    assert 'id="zone-legend"' in body
+    assert 'id="camera-image-wrap"' in body

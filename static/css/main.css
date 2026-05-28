@@ -25,6 +25,23 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 .incident-card.CRITICAL{ border-left-color: #ff0040; }
 .incident-card.MEDIUM  { border-left-color: #fd7e14; }
 .incident-card.LOW     { border-left-color: #ffc107; }
+.incident-card.info-note {
+  border-left-color: #2a2a2a;
+  opacity: 0.78;
+}
+
+.zone-pill {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 0.75rem;
+  font-size: 0.72rem;
+  color: #eee;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--zone-colour, #888);
+}
+
+#zone-overlay polygon { transition: fill-opacity 0.2s ease; }
+#zone-overlay polygon:hover { fill-opacity: 0.35; }
 
 .trace-entry {
   font-size: 0.78rem;

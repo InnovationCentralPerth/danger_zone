@@ -9,8 +9,12 @@ const severityBadge = {
   CRITICAL: 'danger',
   MEDIUM:   'warning',
   LOW:      'secondary',
+  INFO:     'info',
   undefined:'secondary',
 };
+
+// Severities that don't bump the red "live incident" counter.
+const NON_ALERT_SEVERITIES = new Set(['INFO']);
 
 function prependTo(containerId, html) {
   const el = document.getElementById(containerId);
@@ -29,8 +33,46 @@ async function loadConfiguredCamera() {
       document.getElementById('camera-serial').textContent =
         `${cams[0].name} (${cameraSerial})`;
       refreshSnapshot();  // try to show whatever's on disk
+      loadZones();
     }
   } catch (e) { console.error('Failed to load camera config', e); }
+}
+
+async function loadZones() {
+  if (!cameraSerial) return;
+  const overlay = document.getElementById('zone-overlay');
+  const legend = document.getElementById('zone-legend');
+  try {
+    const r = await fetch(`/cameras/${cameraSerial}/zones`);
+    if (!r.ok) return;
+    const data = await r.json();
+    overlay.innerHTML = '';
+    legend.innerHTML = '';
+    for (const z of (data.zones || [])) {
+      const pts = (z.polygon || [])
+        .map(([x, y]) => `${(x * 100).toFixed(2)},${(y * 100).toFixed(2)}`)
+        .join(' ');
+      if (!pts) continue;
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points', pts);
+      poly.setAttribute('fill', z.colour);
+      poly.setAttribute('fill-opacity', '0.18');
+      poly.setAttribute('stroke', z.colour);
+      poly.setAttribute('stroke-width', '0.4');
+      poly.setAttribute('vector-effect', 'non-scaling-stroke');
+      poly.dataset.zoneId = z.id;
+      overlay.appendChild(poly);
+
+      const pill = document.createElement('span');
+      pill.className = 'zone-pill me-2';
+      pill.style.setProperty('--zone-colour', z.colour);
+      const suffix = z.required_item ? ` · requires ${z.required_item}` : '';
+      pill.textContent = `${z.label}${suffix}`;
+      legend.appendChild(pill);
+    }
+  } catch (e) {
+    console.error('Failed to load zones', e);
+  }
 }
 
 function refreshSnapshot() {
@@ -44,6 +86,8 @@ function refreshSnapshot() {
     img.src = url;
     img.classList.remove('d-none');
     empty.classList.add('d-none');
+    document.getElementById('zone-overlay').classList.remove('d-none');
+    document.getElementById('zone-legend').classList.remove('d-none');
   };
   probe.onerror = () => { /* no snapshot yet — keep placeholder */ };
   probe.src = url;
@@ -172,15 +216,19 @@ evtSource.addEventListener('camera_snapshot', (e) => {
 
 evtSource.addEventListener('incident_new', (e) => {
   const d = JSON.parse(e.data);
-  incidentCount++;
-  document.getElementById('incident-count').textContent = incidentCount;
+  const isAlert = !NON_ALERT_SEVERITIES.has(d.severity);
+  if (isAlert) {
+    incidentCount++;
+    document.getElementById('incident-count').textContent = incidentCount;
+  }
 
   const badge = severityBadge[d.severity] || 'secondary';
   const ts = new Date(d.timestamp).toLocaleTimeString();
   const demoTag = d.demo ? '<span class="badge bg-secondary ms-1">DEMO</span>' : '';
+  const cardClass = isAlert ? `incident-card ${d.severity}` : 'incident-card info-note';
 
   prependTo('incident-list', `
-    <div class="incident-card ${d.severity} bg-dark p-3 mx-2 mt-2 rounded">
+    <div class="${cardClass} bg-dark p-3 mx-2 mt-2 rounded">
       <div class="d-flex justify-content-between align-items-start">
         <span class="badge bg-${badge}">${d.type}</span>
         ${demoTag}

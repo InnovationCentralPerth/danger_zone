@@ -224,9 +224,34 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
                 f"PPE_VIOLATION ({item_label}) confirmed "
                 f"(conf={confidence:.2f}, {missing}/{in_area}) -> incident #{incident.id}"
             )
-        else:
+        elif in_area >= 1 and missing == 0 and confidence >= 0.5:
+            # Person present + correct PPE -> small compliance note (INFO).
+            incident = await create_incident(
+                type=IncidentType.PPE_OK,
+                severity=IncidentSeverity.INFO,
+                summary=(
+                    f"PPE OK in '{area_label}' on camera {serial}: "
+                    f"{in_area} person(s) wearing {item_label}. {reasoning}"
+                ),
+                camera_id=serial,
+                snapshot_path=snapshot_path,
+                extra={
+                    "vlm_model": model,
+                    "vlm_confidence": confidence,
+                    "required_item": item_key,
+                    "people_in_area": in_area,
+                    "vlm_raw": verdict,
+                },
+            )
+            run_ctx.incident_id = incident.id
             run_ctx.decision = (
-                f"cleared ({item_label}): violation={violation}, conf={confidence:.2f}, "
+                f"PPE_OK ({item_label}): {in_area} person(s) compliant "
+                f"(conf={confidence:.2f}) -> incident #{incident.id}"
+            )
+        else:
+            # Either nobody in area, or low confidence — trace only, no incident.
+            run_ctx.decision = (
+                f"silent ({item_label}): violation={violation}, conf={confidence:.2f}, "
                 f"in_area={in_area}, missing={missing}"
             )
 
