@@ -15,7 +15,13 @@
   <div class="container-fluid">
     <span class="navbar-brand fw-bold text-danger fs-4">⚡ danger_zone</span>
     <span class="navbar-subtitle small">Agentic AI Security Demonstrator</span>
-    <a href="/docs" class="btn btn-outline-light btn-sm" target="_blank">API Docs</a>
+    <div class="d-flex align-items-center gap-2">
+      <label for="model-select" class="small text-muted mb-0">VLM:</label>
+      <select id="model-select" class="form-select form-select-sm bg-dark text-light border-secondary" style="width:auto;">
+        <option value="">loading…</option>
+      </select>
+      <a href="/docs" class="btn btn-outline-light btn-sm" target="_blank">API Docs</a>
+    </div>
   </div>
 </nav>
 

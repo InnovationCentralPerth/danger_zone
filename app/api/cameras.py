@@ -38,12 +38,31 @@ async def list_meraki_cameras() -> list[dict]:
 
 
 @router.post("/{serial}/snapshot", summary="Force a fresh snapshot from a camera")
-async def trigger_snapshot(serial: str) -> dict[str, str]:
-    """Generate, fetch, and persist a new snapshot from the camera."""
+async def trigger_snapshot(serial: str, analyse: bool = True) -> dict[str, str]:
+    """Generate, fetch, and persist a new snapshot from the camera.
+
+    When ``analyse=true`` (default) the snapshot is published to the bus so
+    subscribed agents (zone_intrusion, ppe_compliance) can react to it.
+    """
+    from datetime import datetime
+
+    from app.runtime.bus import bus
+
     try:
         path = await fetch_and_persist_snapshot(serial)
     except MerakiError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+
+    if analyse:
+        await bus.publish(
+            "camera.snapshot",
+            {
+                "serial": serial,
+                "path": str(path),
+                "timestamp": datetime.utcnow().isoformat(),
+                "trigger": "manual",
+            },
+        )
     return {"status": "ok", "path": str(path)}
 
 

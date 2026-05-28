@@ -49,21 +49,23 @@ config/
 |---|---|---|
 | `incident.new` | agents | dashboard SSE, DB writer |
 | `heartbeat` | heartbeat agent | dashboard SSE |
-| `agent.trace` | trace decorator | dashboard SSE |
-| `camera.motion` | meraki webhook | zone_intrusion agent |
+| `agent.trace` | `AgentRun` ctx manager | dashboard SSE, DB writer |
+| `camera.motion` | meraki webhook | (logged; snapshot pipeline handles intrusion) |
+| `camera.snapshot` | `/cameras/{serial}/snapshot` + motion handler | zone_intrusion agent |
 | `network.client` | meraki webhook | rogue_device agent |
 | `agent.invoke.*` | POST /agents/{name}/invoke | named agent |
 
 ## VLM / LLM Provider
-- GitHub Models API (OpenAI-compatible): `https://models.inference.ai.azure.com`
+- GitHub Models API (OpenAI-compatible): `https://models.github.ai/inference`
 - Auth: `GITHUB_TOKEN` (PAT) as Bearer token
 - Default model: `openai/gpt-4o-mini` (vision-capable)
 - Only models with `vision: true` in `config/models.yaml` can process snapshots
-- Provider abstraction lives in `app/integrations/vlm.py` (stub until milestone 3)
+- Provider abstraction lives in `app/integrations/vlm.py` — `GitHubModelsProvider.analyse_image()` sends image as base64 data URL and forces `response_format=json_object`
+- Active model switchable at runtime via `POST /models/active` or the dashboard dropdown
 
 ## External Agent API
 - OpenAPI at `/docs`; all routes are auth-guarded via `X-API-Key` header
-- Key groups: `incidents`, `agents`, `cameras`, `network`, `ops`
+- Key groups: `incidents`, `agents`, `cameras`, `network`, `models`, `ops`
 - `POST /agents/{name}/invoke` to trigger any named agent on demand
 
 ## Webhook setup (Meraki → app)
@@ -94,7 +96,7 @@ config/
 Each milestone is built on its own branch, PR'd into `main` on completion:
 1. `feat/skeleton` — FastAPI + bus + scheduler + demo agent + HTMX dashboard (done)
 2. `feat/meraki-client` — Meraki SDK client, snapshot fetch+persist, camera tile, webhook→bus wiring (done)
-3. `feat/vlm-zone-intrusion` — VLM adapter + Agent A (zone intrusion)
+3. `feat/vlm-zone-intrusion` — VLM adapter + Agent A (zone intrusion) (done)
 4. `feat/ppe-compliance` — Agent B
 5. `feat/rogue-device` — Agent C + whitelist UI
 6. `feat/polish` — heartbeat narrator, external-agent docs page, face-blur option
