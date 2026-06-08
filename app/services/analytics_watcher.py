@@ -203,6 +203,30 @@ def restore_on_startup() -> None:
 # ---- task lifecycle --------------------------------------------------------
 
 
+def _log_task_exception(serial: str, task: asyncio.Task[None]) -> None:
+    """Surface task exceptions that asyncio would otherwise swallow.
+
+    Without this, a crash inside ``_run()`` before its first ``await`` (or any
+    uncaught exception) leaves the watcher in a "running but dead" state with
+    no log line. ``add_done_callback`` runs synchronously when the task ends.
+    """
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is None:
+        return
+    logger.error(
+        "analytics_watcher: task for %s died with %s: %s",
+        serial,
+        type(exc).__name__,
+        exc,
+        exc_info=exc,
+    )
+    # Clear stale entries so a subsequent enable() can respawn cleanly.
+    _tasks.pop(serial, None)
+    _runtime.pop(serial, None)
+
+
 def _spawn(serial: str, interval: int) -> None:
     existing = _tasks.get(serial)
     if existing and not existing.done():
@@ -214,7 +238,9 @@ def _spawn(serial: str, interval: int) -> None:
         )
         return
     _runtime[serial] = _RuntimeState(started_at=time.monotonic(), backoff=interval)
-    _tasks[serial] = asyncio.create_task(_run(serial, interval))
+    task = asyncio.create_task(_run(serial, interval))
+    task.add_done_callback(lambda t: _log_task_exception(serial, t))
+    _tasks[serial] = task
 
 
 async def _cancel(serial: str) -> None:

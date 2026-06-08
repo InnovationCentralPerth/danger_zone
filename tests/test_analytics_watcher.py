@@ -307,3 +307,32 @@ def test_extract_full_frame_picks_zone_zero():
 def test_extract_full_frame_returns_none_when_missing():
     rows = [{"zoneId": "999"}]
     assert analytics_watcher._extract_full_frame(rows) is None
+
+
+# ---- task-death observability ---------------------------------------------
+
+
+async def test_dying_task_logs_exception_and_clears_registry(caplog):
+    """A crash inside _run() must surface in logs and not leave a zombie task.
+
+    Without ``add_done_callback`` in ``_spawn``, asyncio swallows the exception
+    silently and the watcher state reads ``running=False`` with no clue why.
+    """
+    import logging
+
+    def _boom() -> None:
+        raise RuntimeError("simulated meraki init failure")
+
+    caplog.set_level(logging.ERROR, logger="app.services.analytics_watcher")
+    with patch("app.services.analytics_watcher.get_client", side_effect=_boom):
+        analytics_watcher._spawn("SERIAL-CRASH", interval=2)
+        # Yield control so the task can run and die.
+        for _ in range(5):
+            await asyncio.sleep(0)
+
+    assert "SERIAL-CRASH" not in analytics_watcher._tasks
+    assert "SERIAL-CRASH" not in analytics_watcher._runtime
+    assert any(
+        "task for SERIAL-CRASH died" in rec.message and "RuntimeError" in rec.message
+        for rec in caplog.records
+    )
