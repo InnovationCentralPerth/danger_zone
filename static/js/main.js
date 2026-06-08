@@ -25,6 +25,55 @@ function prependTo(containerId, html) {
   el.insertAdjacentHTML('afterbegin', html);
 }
 
+// ---- incident card helpers ------------------------------------------------
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function parseExtra(d) {
+  if (!d || !d.extra_json) return {};
+  try { return JSON.parse(d.extra_json); } catch { return {}; }
+}
+
+function renderConfidenceBar(conf) {
+  if (typeof conf !== 'number' || conf < 0 || conf > 1) return '';
+  const pct = Math.round(conf * 100);
+  const tier = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'mid' : 'low';
+  return `
+    <div class="confidence-row">
+      <span class="confidence-label">Confidence</span>
+      <div class="confidence-bar-wrap">
+        <div class="confidence-bar confidence-bar-${tier}" style="width:${pct}%"></div>
+      </div>
+      <span class="confidence-pct">${pct}%</span>
+    </div>
+  `;
+}
+
+function openSnapshotModal({ id, type, severity, time, summary }) {
+  const title = document.getElementById('snapshotModalTitle');
+  const img = document.getElementById('snapshotModalImg');
+  const sum = document.getElementById('snapshotModalSummary');
+  const api = document.getElementById('snapshotModalApi');
+  if (!title || !img || !sum || !api) return false;
+  const sevLabel = severity ? ` · ${severity}` : '';
+  title.textContent = `Incident #${id} — ${type}${sevLabel} · ${time}`;
+  img.src = `/incidents/${id}/snapshot`;
+  img.alt = `Incident ${id} snapshot`;
+  sum.textContent = summary || '';
+  api.href = `/incidents/${id}`;
+  // eslint-disable-next-line no-undef
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('snapshotModal')).show();
+  return true;
+}
+
 // ---- camera tile ----------------------------------------------------------
 
 async function loadConfiguredCamera() {
@@ -314,31 +363,55 @@ evtSource.addEventListener('camera_snapshot', (e) => {
 function renderIncidentCard(d) {
   const isAlert = !NON_ALERT_SEVERITIES.has(d.severity);
   const badge = severityBadge[d.severity] || 'secondary';
-  const ts = new Date(d.timestamp || d.created_at).toLocaleTimeString();
+  const date = new Date(d.timestamp || d.created_at);
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const day = date.toLocaleDateString([], { day: '2-digit', month: 'short' });
   const demoTag = d.demo ? '<span class="badge bg-secondary ms-1">DEMO</span>' : '';
   const cardClass = isAlert ? `incident-card ${d.severity}` : 'incident-card info-note';
   const cameraId = d.camera_id;
   const clientMac = d.client_mac;
-  // Use incident id when we have one (hydrated rows always do; SSE events do too)
+  const summary = escapeHtml(d.summary);
+  const type = escapeHtml(d.type || '');
+  const sev = escapeHtml(d.severity || '');
+
+  const extra = parseExtra(d);
+  const conf = typeof extra.vlm_confidence === 'number' ? extra.vlm_confidence : null;
+  const confBar = renderConfidenceBar(conf);
+
   const thumb = (d.id && d.snapshot_path)
-    ? `<a href="/incidents/${d.id}/snapshot" target="_blank" class="incident-thumb-link">
+    ? `<a href="/incidents/${d.id}/snapshot"
+          class="incident-thumb-link"
+          data-incident-id="${d.id}"
+          data-incident-type="${type}"
+          data-incident-severity="${sev}"
+          data-incident-time="${time} · ${day}"
+          data-incident-summary="${summary}">
          <img src="/incidents/${d.id}/snapshot" class="incident-thumb" alt="snapshot" loading="lazy"
               onerror="this.parentElement.style.display='none'">
        </a>`
     : '';
+
+  const metaTags = [
+    cameraId ? `<span class="incident-meta-tag">Camera ${escapeHtml(cameraId)}</span>` : '',
+    clientMac ? `<span class="incident-meta-tag">MAC ${escapeHtml(clientMac)}</span>` : '',
+  ].filter(Boolean).join('');
+
   return `
-    <div class="${cardClass} bg-dark p-3 mx-2 mt-2 rounded" data-incident-id="${d.id || ''}">
-      <div class="d-flex justify-content-between align-items-start">
-        <span class="badge bg-${badge}">${d.type}</span>
-        ${demoTag}
-        <small class="text-muted">${ts}</small>
+    <div class="${cardClass}" data-incident-id="${d.id || ''}">
+      <div class="incident-card-header">
+        <div class="incident-card-header-left">
+          <span class="badge bg-${badge}">${type}</span>
+          <span class="incident-severity-pill incident-severity-${sev}">${sev}</span>
+          ${demoTag}
+        </div>
+        <small class="incident-card-time text-muted">${time} <span class="text-secondary">·</span> ${day}</small>
       </div>
-      <div class="d-flex gap-2 mt-2">
+      <div class="incident-card-body">
         ${thumb}
-        <div class="flex-grow-1">
-          <p class="mb-0 small">${d.summary}</p>
-          ${cameraId ? `<small class="text-muted d-block">Camera: ${cameraId}</small>` : ''}
-          ${clientMac ? `<small class="text-muted d-block">MAC: ${clientMac}</small>` : ''}
+        <div class="incident-card-details">
+          <p class="incident-summary">${summary}</p>
+          ${confBar}
+          ${metaTags ? `<div class="incident-card-meta">${metaTags}</div>` : ''}
         </div>
       </div>
     </div>
@@ -400,6 +473,22 @@ evtSource.addEventListener('agent_trace', (e) => {
       <small class="float-end">${ts} · ${d.latency_ms}ms</small>
     </div>
   `);
+});
+
+// Click-to-modal for incident thumbnails (event delegation — survives
+// re-renders and works for hydrated + SSE-streamed cards).
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('.incident-thumb-link');
+  if (!link) return;
+  if (typeof bootstrap === 'undefined') return; // graceful fallback to href
+  e.preventDefault();
+  openSnapshotModal({
+    id:       link.dataset.incidentId,
+    type:     link.dataset.incidentType,
+    severity: link.dataset.incidentSeverity,
+    time:     link.dataset.incidentTime,
+    summary:  link.dataset.incidentSummary,
+  });
 });
 
 evtSource.onerror = () => {
