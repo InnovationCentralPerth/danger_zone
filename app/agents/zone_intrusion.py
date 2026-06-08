@@ -11,13 +11,14 @@ VLM call and one incident.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
 
 from app.integrations.vlm import VLMError, get_active_model, get_provider
 from app.models.db import IncidentSeverity, IncidentType
-from app.runtime.bus import bus
+from app.runtime.bus import BusEvent, bus
 from app.runtime.trace import AgentRun
 from app.services.agent_mode import is_active
 from app.services.config_loader import load_cameras
@@ -164,19 +165,47 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
 # ---- bus subscriber --------------------------------------------------------
 
 
+async def _coalesce_latest_by_serial(
+    q: asyncio.Queue[BusEvent], first: BusEvent
+) -> dict[str, BusEvent]:
+    """Drain ``q`` and return the most-recent event per ``serial``.
+
+    Used by VLM-backed subscribers to collapse a backlog of snapshots that
+    accumulated while a previous call was in flight. Keeps the dashboard
+    responsive without firing one VLM call per queued event.
+    """
+    latest: dict[str, BusEvent] = {}
+    s = first.payload.get("serial")
+    if s:
+        latest[s] = first
+    while True:
+        try:
+            nxt = q.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+        ns = nxt.payload.get("serial")
+        if ns:
+            latest[ns] = nxt
+    return latest
+
+
 async def _subscriber() -> None:
     q = bus.subscribe("camera.snapshot")
     logger.info("zone_intrusion subscriber started")
     while True:
         event = await q.get()
-        serial = event.payload.get("serial")
-        path = event.payload.get("path")
-        if not serial or not path:
+        latest = await _coalesce_latest_by_serial(q, event)
+        if len(latest) == 0:
             continue
-        try:
-            await run(serial, path, trigger=event.payload.get("trigger", "camera.snapshot"))
-        except Exception:  # noqa: BLE001
-            logger.exception("zone_intrusion run failed for %s", serial)
+        for ev in latest.values():
+            serial = ev.payload.get("serial")
+            path = ev.payload.get("path")
+            if not serial or not path:
+                continue
+            try:
+                await run(serial, path, trigger=ev.payload.get("trigger", "camera.snapshot"))
+            except Exception:  # noqa: BLE001
+                logger.exception("zone_intrusion run failed for %s", serial)
 
 
 async def _invoke_subscriber() -> None:

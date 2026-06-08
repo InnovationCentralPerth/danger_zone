@@ -1,0 +1,21 @@
+<!-- Cisco placeholder logo. Replace with the real artwork at
+     static/img/cisco-logo.svg or static/img/cisco-logo.png. Cisco's
+     trademarked wordmark/bridge is reproduced here only as a text proxy
+     to keep the demo runnable; swap in the official asset before any
+     public showcase. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 56" role="img" aria-label="Cisco">
+  <!-- Six-bar "bridge" mark in Cisco blue -->
+  <g fill="#1ba0d7" transform="translate(8 16)">
+    <rect x="0"  y="10"  width="4" height="4" rx="2"/>
+    <rect x="0"  y="16"  width="4" height="12" rx="2"/>
+    <rect x="0"  y="30"  width="4" height="4" rx="2"/>
+    <rect x="8"  y="6"   width="4" height="22" rx="2"/>
+    <rect x="16" y="0"   width="4" height="34" rx="2"/>
+    <rect x="24" y="6"   width="4" height="22" rx="2"/>
+    <rect x="32" y="10"  width="4" height="4" rx="2"/>
+    <rect x="32" y="16"  width="4" height="12" rx="2"/>
+    <rect x="32" y="30"  width="4" height="4" rx="2"/>
+  </g>
+  <text x="58" y="40" font-family="'Helvetica Neue', Arial, sans-serif"
+        font-size="32" font-weight="300" fill="#1ba0d7" letter-spacing="-1">cisco</text>
+</svg>

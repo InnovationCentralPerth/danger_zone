@@ -173,6 +173,28 @@ class MerakiClient:
             f"(last_status={last_status}, body={last_body_preview!r})"
         )
 
+    # ---- analytics --------------------------------------------------------
+
+    async def get_camera_analytics_recent(self, serial: str) -> list[dict[str, Any]]:
+        """Return Meraki's recent on-device analytics windows for a camera.
+
+        Each entry looks like::
+
+            {"zoneId": "0", "startTs": "...", "endTs": "...",
+             "entrances": 0, "averageCount": 0.023}
+
+        Zone id ``"0"`` is the always-present "Full Frame" zone. Other ids
+        correspond to Dashboard-configured analytics zones (which we ignore in
+        favour of YAML zones for VLM reasoning).
+
+        Zones with no recent updates return ``{"zoneId": ..., "error": "..."}``;
+        we pass them through unchanged so the caller can inspect.
+        """
+        return await self._run(  # type: ignore[no-any-return]
+            self._sdk.camera.getDeviceCameraAnalyticsRecent,
+            serial,
+        )
+
     # ---- network clients --------------------------------------------------
 
     async def list_network_clients(self, network_id: str, timespan: int = 3600) -> list[dict]:

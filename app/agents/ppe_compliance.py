@@ -260,18 +260,23 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
 
 
 async def _subscriber() -> None:
+    # Import here to avoid circular import at module-load time.
+    from app.agents.zone_intrusion import _coalesce_latest_by_serial
+
     q = bus.subscribe("camera.snapshot")
     logger.info("ppe_compliance subscriber started")
     while True:
         event = await q.get()
-        serial = event.payload.get("serial")
-        path = event.payload.get("path")
-        if not serial or not path:
-            continue
-        try:
-            await run(serial, path, trigger=event.payload.get("trigger", "camera.snapshot"))
-        except Exception:  # noqa: BLE001
-            logger.exception("ppe_compliance run failed for %s", serial)
+        latest = await _coalesce_latest_by_serial(q, event)
+        for ev in latest.values():
+            serial = ev.payload.get("serial")
+            path = ev.payload.get("path")
+            if not serial or not path:
+                continue
+            try:
+                await run(serial, path, trigger=ev.payload.get("trigger", "camera.snapshot"))
+            except Exception:  # noqa: BLE001
+                logger.exception("ppe_compliance run failed for %s", serial)
 
 
 async def _invoke_subscriber() -> None:

@@ -1,0 +1,18 @@
+<!-- Innovation Central Perth placeholder logo. Replace with the real artwork
+     at static/img/icp-logo.svg or static/img/icp-logo.png — the template will
+     prefer the real file if present. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" role="img" aria-label="Innovation Central Perth">
+  <defs>
+    <linearGradient id="icpGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="56" height="56" rx="8" fill="url(#icpGrad)"/>
+  <text x="28" y="36" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif"
+        font-size="26" font-weight="700" fill="#fff" letter-spacing="-1">ICP</text>
+  <text x="68" y="24" font-family="'Helvetica Neue', Arial, sans-serif"
+        font-size="14" font-weight="600" fill="#e5e7eb">Innovation Central</text>
+  <text x="68" y="42" font-family="'Helvetica Neue', Arial, sans-serif"
+        font-size="14" font-weight="400" fill="#9ca3af" letter-spacing="2">PERTH</text>
+</svg>
