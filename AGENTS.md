@@ -51,10 +51,10 @@ config/
 | `heartbeat` | heartbeat agent | dashboard SSE |
 | `agent.trace` | `AgentRun` ctx manager | dashboard SSE, DB writer |
 | `camera.motion` | meraki webhook | (logged; snapshot pipeline handles intrusion) |
-| `camera.snapshot` | `/cameras/{serial}/snapshot` + motion handler + auto-capture loop | zone_intrusion agent, ppe_compliance agent |
+| `camera.snapshot` | `/cameras/{serial}/snapshot` + motion handler + analytics watcher | zone_intrusion agent, ppe_compliance agent |
 | `network.client` | meraki webhook | rogue_device agent |
 | `agent.invoke.*` | POST /agents/{name}/invoke | named agent |
-| `auto_capture.tick` | auto-capture loop | dashboard SSE (status dot) |
+| `analytics_watcher.tick` | analytics watcher loop | dashboard SSE (status dot) |
 
 ## VLM / LLM Provider
 - GitHub Models API (OpenAI-compatible): `https://models.github.ai/inference`
@@ -67,6 +67,7 @@ config/
 ## External Agent API
 - OpenAPI at `/docs`; all routes are auth-guarded via `X-API-Key` header
 - Key groups: `incidents`, `agents`, `cameras`, `network`, `models`, `ops`
+- `GET /incidents/{id}/snapshot` returns the JPEG attached to an incident (404 if no snapshot or file missing); dashboard renders this as a 120×80 thumbnail per card.
 - `POST /agents/{name}/invoke` to trigger any named agent on demand
 
 ## Agent active/passive mode
@@ -91,21 +92,24 @@ config/
 - `static/js/main.js::loadZones()` builds SVG polygons inside `#zone-overlay` (viewBox 0 0 100 100, coords * 100) and renders pills in `#zone-legend`. Overlay revealed only after a snapshot loads.
 - Exclusion zone = red `#ff3c3c` (`kind: "intrusion"`); PPE area = yellow `#ffd200` (`kind: "ppe"`).
 
-## Auto-capture loop
-- `app/services/auto_capture.py` owns one asyncio.Task per camera that polls `fetch_and_persist_snapshot()` on an interval, then publishes `camera.snapshot` with `trigger: "auto"` so the existing agents pick it up. Replaces the need to click *Capture now* — the demo feels agentic without human intervention.
-- State persisted in `Setting` table: `auto_capture.<serial>.enabled` (`"true"`/`"false"`), `auto_capture.<serial>.interval_seconds`.
+## Analytics-gated capture watcher
+- `app/services/analytics_watcher.py` owns one asyncio.Task per camera that polls Meraki's on-device analytics (`/devices/{serial}/camera/analytics/recent`) on an interval. A snapshot is only fetched (`fetch_and_persist_snapshot`) and published onto `camera.snapshot` (with `trigger: "watcher"`) when a person is detected in the Full-Frame zone. Replaces the dumb auto-capture loop — the demo still feels agentic but VLM calls only happen when something interesting is in frame, drastically cutting GitHub Models token spend.
+- **Gate rule** (per poll, per camera): for zone `"0"` (Full Frame), if `endTs` advanced **AND** (`averageCount > 0` **OR** `entrances > last_entrances`) → trigger snapshot. Otherwise publish a quiet tick and skip. Catches both "person currently in frame" and "person just walked in" rising edges.
+- State persisted in `Setting` table: `analytics_watcher.<serial>.enabled` (`"true"`/`"false"`), `analytics_watcher.<serial>.interval_seconds`.
 - API (all under `/cameras`):
-  - `GET /auto-capture` — list state for every configured camera
-  - `GET /{serial}/auto-capture` — single-camera state (404 unknown serial)
-  - `POST /{serial}/auto-capture` body `{"enabled": bool, "interval_seconds"?: int}` — idempotent; 422 if interval < `MIN_INTERVAL_SECONDS` (2)
-- Defaults: `DEFAULT_INTERVAL_SECONDS = 5`, `MIN_INTERVAL_SECONDS = 2`, `MAX_BACKOFF_SECONDS = 60`, `MAX_RUNTIME_SECONDS = 30*60` (auto-shutoff guard).
+  - `GET /analytics-watcher` — list state for every configured camera
+  - `GET /{serial}/analytics-watcher` — single-camera state (404 unknown serial)
+  - `POST /{serial}/analytics-watcher` body `{"enabled": bool, "interval_seconds"?: int}` — idempotent; 422 if interval outside `[MIN_INTERVAL_SECONDS, MAX_INTERVAL_SECONDS]` (2–60)
+  - `GET /{serial}/analytics/recent` — debug passthrough of Meraki's raw analytics JSON for external agents
+- Defaults: `DEFAULT_INTERVAL_SECONDS = 5`, `MIN_INTERVAL_SECONDS = 2`, `MAX_INTERVAL_SECONDS = 60`, `MAX_BACKOFF_SECONDS = 60`, `MAX_RUNTIME_SECONDS = 30*60` (auto-shutoff guard).
 - Safety rails:
   - Default off on first boot.
-  - **Idle skip**: if every gated agent (`zone_intrusion`, `ppe_compliance`) is passive, the loop publishes `auto_capture.tick` with `status="idle"` and skips the Meraki fetch — no quota burned for snapshots nobody analyses.
-  - **Back-off**: consecutive `MerakiError` doubles the sleep up to 60s; resets on first success.
+  - **Idle skip**: if every gated agent (`zone_intrusion`, `ppe_compliance`) is passive, the loop publishes `analytics_watcher.tick` with `status="idle"` and skips the Meraki analytics call entirely — zero requests in steady state.
+  - **Back-off**: consecutive `MerakiError` (on either the analytics poll or the snapshot fetch) doubles the sleep up to 60s; resets on first success.
   - **Auto-shutoff** at 30 min runtime — persists `enabled=false`, publishes `status="auto-shutoff"`, exits.
-- Lifespan: `auto_capture.restore_on_startup()` re-spawns loops for serials persisted as enabled (interval/clock reset).
-- Dashboard pill in the camera tile header — coloured dot + interval input + Start/Stop button. Pulses green on each successful tick; turns red on error, yellow on auto-shutoff.
+- Tick statuses (`analytics_watcher.tick` payload `status`): `person` (snapshot fired), `quiet` (analytics polled, no person), `idle` (gated agents all passive), `error` (Meraki failure), `auto-shutoff`.
+- Lifespan: `analytics_watcher.restore_on_startup()` re-spawns loops for serials persisted as enabled (interval/clock reset).
+- Dashboard pill in the camera tile header — coloured dot + interval input + Start/Stop button. Green pulse on `person`, steady blue on `quiet`, grey on `idle`/`off`, red on `error`, yellow on `auto-shutoff`.
 
 ## Webhook setup (Meraki → app)
 - Endpoint: `POST /webhooks/meraki`
@@ -152,3 +156,5 @@ Each milestone is built on its own branch, PR'd into `main` on completion:
 - `bus` is a module-level singleton; tests that publish events must import the same singleton, not instantiate a new `EventBus`
 - Normalised polygon coords (0–1) in `cameras.yaml` are relative to the **snapshot resolution**, not the camera's native resolution
 - GitHub Models vision: image must be sent as base64 `data:image/jpeg;base64,...` in the `image_url` message part
+- VLM-backed agent subscribers (`zone_intrusion`, `ppe_compliance`) coalesce queued `camera.snapshot` events via `_coalesce_latest_by_serial` before running — when VLM latency > watcher interval, this keeps the queue from growing unboundedly and avoids back-to-back redundant VLM calls. Only the most-recent snapshot per serial is processed.
+- Dashboard hydrates the incident list on page load via `GET /incidents/?limit=20` (see `static/js/main.js::loadIncidents`). Without this, the list stays empty until a new SSE event arrives even though DB has rows. SSE handler deduplicates by `data-incident-id` to avoid double-rendering during a race.

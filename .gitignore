@@ -3,6 +3,7 @@
 *~
 .*.swp
 data/
+logs/
 __pycache__/
 *.pyc
 *.pyo

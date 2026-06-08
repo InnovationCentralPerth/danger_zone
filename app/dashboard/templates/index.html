@@ -43,14 +43,14 @@
           <span>Camera Feed <span id="camera-serial" class="text-muted small ms-2"></span></span>
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <span id="camera-status" class="badge bg-secondary">idle</span>
-            <div id="auto-capture-pill" class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded border border-secondary small" title="Auto-capture loop">
-              <span id="auto-capture-dot" class="auto-dot off"></span>
-              <span id="auto-capture-label" class="text-muted">Auto: off</span>
-              <input id="auto-capture-interval" type="number" min="2" max="120" step="1" value="5"
+            <div id="watcher-pill" class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded border border-secondary small" title="Analytics-gated capture watcher">
+              <span id="watcher-dot" class="auto-dot off"></span>
+              <span id="watcher-label" class="text-muted">Watcher: off</span>
+              <input id="watcher-interval" type="number" min="2" max="60" step="1" value="5"
                      class="form-control form-control-sm bg-dark text-light border-secondary ms-1"
-                     style="width: 4rem;" title="Interval (seconds)"/>
+                     style="width: 4rem;" title="Analytics poll interval (seconds)"/>
               <span class="text-muted">s</span>
-              <button id="auto-capture-toggle" class="btn btn-sm btn-outline-warning ms-1">Start</button>
+              <button id="watcher-toggle" class="btn btn-sm btn-outline-warning ms-1">Start</button>
             </div>
             <button id="snapshot-trigger" class="btn btn-sm btn-outline-warning">Capture now</button>
           </div>

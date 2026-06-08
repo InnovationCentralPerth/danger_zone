@@ -25,6 +25,21 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 .incident-card.CRITICAL{ border-left-color: #ff0040; }
 .incident-card.MEDIUM  { border-left-color: #fd7e14; }
 .incident-card.LOW     { border-left-color: #ffc107; }
+
+.incident-thumb {
+  width: 120px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #2a2a2a;
+  display: block;
+}
+.incident-thumb-link {
+  flex-shrink: 0;
+  display: block;
+  line-height: 0;
+}
+.incident-thumb-link:hover .incident-thumb { border-color: #0dcaf0; }
 .incident-card.info-note {
   border-left-color: #2a2a2a;
   opacity: 0.78;
@@ -57,7 +72,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 
 #heartbeat-banner { transition: all 0.5s; }
 
-/* Auto-capture pill */
+/* Analytics-watcher pill */
 .auto-dot {
   display: inline-block;
   width: 0.6rem;
@@ -68,7 +83,9 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 }
 .auto-dot.off     { background: #555; }
 .auto-dot.idle    { background: #888; }
+.auto-dot.quiet   { background: #0d6efd; }
 .auto-dot.ok      { background: #28a745; animation: autoPulse 1.2s ease-out 1; }
+.auto-dot.person  { background: #28a745; animation: autoPulse 1.2s ease-out 1; }
 .auto-dot.error   { background: #dc3545; }
 .auto-dot.shutoff { background: #ffc107; }
 
@@ -78,5 +95,5 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
   100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(1); }
 }
 
-#auto-capture-pill.is-running { border-color: #28a745 !important; }
-#auto-capture-pill.is-running #auto-capture-label { color: #28a745 !important; }
+#watcher-pill.is-running { border-color: #28a745 !important; }
+#watcher-pill.is-running #watcher-label { color: #28a745 !important; }
