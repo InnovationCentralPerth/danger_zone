@@ -12,7 +12,7 @@
 | Task | Command |
 |------|---------|
 | First-time setup | `uv venv --python 3.12 && source .venv/bin/activate && uv pip install -e ".[dev]"` |
-| Run dev server | `DEBUG=true uvicorn app.main:app --reload --port 8001` |
+| Run dev server | `DEBUG=true uvicorn app.main:app --reload --reload-dir app --reload-dir static --reload-dir config --port 8001` |
 | Run tests | `pytest -x` |
 | Lint | `ruff check .` |
 | Format | `ruff format .` |
@@ -158,3 +158,4 @@ Each milestone is built on its own branch, PR'd into `main` on completion:
 - GitHub Models vision: image must be sent as base64 `data:image/jpeg;base64,...` in the `image_url` message part
 - VLM-backed agent subscribers (`zone_intrusion`, `ppe_compliance`) coalesce queued `camera.snapshot` events via `_coalesce_latest_by_serial` before running — when VLM latency > watcher interval, this keeps the queue from growing unboundedly and avoids back-to-back redundant VLM calls. Only the most-recent snapshot per serial is processed.
 - Dashboard hydrates the incident list on page load via `GET /incidents/?limit=20` (see `static/js/main.js::loadIncidents`). Without this, the list stays empty until a new SSE event arrives even though DB has rows. SSE handler deduplicates by `data-incident-id` to avoid double-rendering during a race.
+- **Uvicorn `--reload` MUST be scoped to source dirs only** (`--reload-dir app --reload-dir static --reload-dir config`). Without this it watches the whole cwd, including `logs/` and `data/snapshots/` — every log write or new snapshot triggers a worker restart, which kills background asyncio tasks (analytics watcher, agent subscribers) before they can do useful work. Symptom: clicking Start on the Watcher pill "does nothing", `logs/server.log` fills with thousands of `watchfiles.main INFO 1 change detected` lines spaced ~350ms apart.
