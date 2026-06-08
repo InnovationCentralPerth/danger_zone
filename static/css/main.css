@@ -97,3 +97,38 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 
 #watcher-pill.is-running { border-color: #28a745 !important; }
 #watcher-pill.is-running #watcher-label { color: #28a745 !important; }
+
+/* Funder logos — navbar and footer strip */
+.navbar-icp-link {
+  line-height: 0;
+  opacity: 0.9;
+  transition: opacity 0.15s ease;
+}
+.navbar-icp-link:hover { opacity: 1; }
+.navbar-icp-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+
+.funder-strip {
+  background: rgba(0, 0, 0, 0.4);
+}
+.funder-link {
+  line-height: 0;
+  display: inline-block;
+  opacity: 0.85;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.funder-link:hover { opacity: 1; transform: translateY(-1px); }
+.funder-logo {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+.funder-logo-cisco { height: 32px; }
+
+@media (max-width: 576px) {
+  .funder-logo          { height: 32px; }
+  .funder-logo-cisco    { height: 26px; }
+}
