@@ -297,3 +297,274 @@ async def test_passive_mode_skips_vlm_call(tmp_path):
 
     mock_provider.analyse_image.assert_not_awaited()
     ci.assert_not_awaited()
+
+
+# ---- multi-item path (mission context) -----------------------------------
+
+
+def _multi_vlm_result(
+    items: list[dict],
+    *,
+    in_area: int = 1,
+    overall_conf: float = 0.9,
+    summary: str = "stub multi summary",
+):
+    return vlm.VLMResult(
+        raw="{}",
+        parsed={
+            "people_in_area": in_area,
+            "items_checked": items,
+            "overall_confidence": overall_conf,
+            "summary": summary,
+        },
+        model_id="openai/gpt-4o-mini",
+        latency_ms=20,
+    )
+
+
+def _multi_ctx(items, *, severity_hint="medium", note=""):
+    from app.services.mission_context import AgentContext
+
+    return AgentContext(
+        raw_input="test mission",
+        required_items=items,
+        context_note=note,
+        severity_hint=severity_hint,
+        parsed_at="2026-06-08T00:00:00",
+        model_id="openai/gpt-4o-mini",
+    )
+
+
+async def test_multi_item_violation_fires_with_breakdown(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _multi_ctx(["safety glasses", "anti-static wrist strap"], severity_hint="medium")
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_multi_vlm_result(
+            [
+                {"item": "safety glasses", "missing_count": 1, "confidence": 0.9},
+                {"item": "anti-static wrist strap", "missing_count": 2, "confidence": 0.8},
+            ],
+            in_area=2,
+            overall_conf=0.85,
+        )
+    )
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=101)
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    ci.assert_awaited_once()
+    kwargs = ci.await_args.kwargs
+    assert kwargs["type"] == IncidentType.PPE_VIOLATION
+    # severity_hint=medium -> always MEDIUM regardless of confidence
+    assert kwargs["severity"].value == "MEDIUM"
+    assert "safety glasses (1)" in kwargs["summary"]
+    assert "anti-static wrist strap (2)" in kwargs["summary"]
+    extra = kwargs["extra"]
+    assert extra["mission"] == "test mission"
+    assert extra["required_items"] == ["safety glasses", "anti-static wrist strap"]
+    assert len(extra["violating_items"]) == 2
+
+
+async def test_multi_item_severity_high_when_hint_high_and_confident(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _multi_ctx(["hard hat", "fall harness"], severity_hint="high")
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_multi_vlm_result(
+            [
+                {"item": "hard hat", "missing_count": 1, "confidence": 0.9},
+                {"item": "fall harness", "missing_count": 0, "confidence": 0.9},
+            ],
+            in_area=1,
+            overall_conf=0.9,
+        )
+    )
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=1)
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    assert ci.await_args.kwargs["severity"].value == "HIGH"
+
+
+async def test_multi_item_ppe_ok_when_all_compliant(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _multi_ctx(["safety glasses", "hi-vis vest"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_multi_vlm_result(
+            [
+                {"item": "safety glasses", "missing_count": 0, "confidence": 0.95},
+                {"item": "hi-vis vest", "missing_count": 0, "confidence": 0.92},
+            ],
+            in_area=1,
+            overall_conf=0.93,
+        )
+    )
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=2)
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    ci.assert_awaited_once()
+    kwargs = ci.await_args.kwargs
+    assert kwargs["type"] == IncidentType.PPE_OK
+    assert kwargs["severity"].value == "INFO"
+
+
+async def test_multi_item_silent_when_nobody_in_area(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _multi_ctx(["hard hat"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_multi_vlm_result(
+            [{"item": "hard hat", "missing_count": 0, "confidence": 0.95}],
+            in_area=0,
+            overall_conf=0.95,
+        )
+    )
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    ci.assert_not_awaited()
+
+
+async def test_multi_item_low_confidence_silenced(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _multi_ctx(["safety glasses"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_multi_vlm_result(
+            [{"item": "safety glasses", "missing_count": 1, "confidence": 0.3}],
+            in_area=1,
+            overall_conf=0.3,
+        )
+    )
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    ci.assert_not_awaited()
+
+
+async def test_multi_item_per_item_low_confidence_excluded_from_violations(tmp_path):
+    """An item with missing>=1 but confidence<0.5 must not count as violating."""
+    snap = _write_snapshot(tmp_path)
+    ctx = _multi_ctx(["safety glasses", "hard hat"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_multi_vlm_result(
+            [
+                # confident violation
+                {"item": "safety glasses", "missing_count": 1, "confidence": 0.9},
+                # unconfident — should NOT count toward violations
+                {"item": "hard hat", "missing_count": 1, "confidence": 0.3},
+            ],
+            in_area=1,
+            overall_conf=0.7,
+        )
+    )
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=3)
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    ci.assert_awaited_once()
+    extra = ci.await_args.kwargs["extra"]
+    # Only safety glasses should be in violating_items
+    violating_names = [v["item"] for v in extra["violating_items"]]
+    assert violating_names == ["safety glasses"]
+
+
+async def test_multi_item_context_when_active_takes_priority_over_yaml_default(tmp_path):
+    """A mission with no yaml ppe_area.required_item should still use the multi-item path."""
+    snap = _write_snapshot(tmp_path)
+    cfg = _camera_cfg()
+    # Remove required_item — mission context should drive the eval anyway.
+    cfg[0]["ppe_area"].pop("required_item", None)
+    ctx = _multi_ctx(["hard hat"], severity_hint="medium")
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_multi_vlm_result(
+            [{"item": "hard hat", "missing_count": 1, "confidence": 0.9}],
+            in_area=1,
+            overall_conf=0.9,
+        )
+    )
+    with (
+        patch("app.agents.ppe_compliance.load_cameras", return_value=cfg),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=4)
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    ci.assert_awaited_once()
+    assert ci.await_args.kwargs["type"] == IncidentType.PPE_VIOLATION
+
+
+# ---- pure helpers ---------------------------------------------------------
+
+
+def test_parse_multi_item_verdict_normalises_and_filters():
+    parsed = {
+        "people_in_area": 3,
+        "overall_confidence": 0.8,
+        "summary": "x",
+        "items_checked": [
+            {"item": "SAFETY GLASSES", "missing_count": 2, "confidence": 0.9},
+            {"item": "wrist strap", "missing_count": 1, "confidence": 0.3},  # low conf
+            # missing "hard hat" — should be filled with zeros
+        ],
+    }
+    out = ppe_compliance._parse_multi_item_verdict(
+        parsed, ["safety glasses", "wrist strap", "hard hat"]
+    )
+    assert out["people_in_area"] == 3
+    assert out["total_missing"] == 3  # 2 + 1 + 0
+    assert [i["item"] for i in out["items"]] == [
+        "safety glasses",
+        "wrist strap",
+        "hard hat",
+    ]
+    # Only confident violations count
+    assert [v["item"] for v in out["violating_items"]] == ["safety glasses"]
+
+
+def test_severity_from_hint_mapping():
+    sev_high_conf = ppe_compliance._severity_from_hint("high", 0.9)
+    sev_high_low = ppe_compliance._severity_from_hint("high", 0.6)
+    sev_medium = ppe_compliance._severity_from_hint("medium", 0.99)
+    sev_low = ppe_compliance._severity_from_hint("low", 0.99)
+    assert sev_high_conf.value == "HIGH"
+    assert sev_high_low.value == "MEDIUM"
+    assert sev_medium.value == "MEDIUM"
+    assert sev_low.value == "LOW"

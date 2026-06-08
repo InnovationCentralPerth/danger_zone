@@ -117,6 +117,70 @@ class GitHubModelsProvider:
             completion_tokens=getattr(usage, "completion_tokens", None),
         )
 
+    async def complete(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        model_id: str | None = None,
+        max_tokens: int = 512,
+        json_response: bool = True,
+    ) -> VLMResult:
+        """Text-only completion (no image). Used by intent-parsing flows.
+
+        Cheap one-shot LLM call — e.g. parse a natural-language mission
+        instruction into structured PPE requirements. Returns the same
+        :class:`VLMResult` shape as :meth:`analyse_image` for trace symmetry.
+        ``parsed`` is the empty dict ``{}`` when ``json_response`` is False.
+        """
+        import time
+
+        model = model_id or self._default_model
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        start = time.monotonic()
+        try:
+            kwargs: dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": 0.0,
+            }
+            if json_response:
+                kwargs["response_format"] = {"type": "json_object"}
+            resp = await self._client.chat.completions.create(**kwargs)
+        except Exception as e:  # noqa: BLE001
+            raise VLMError(f"LLM call failed ({model}): {e}") from e
+
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        text = resp.choices[0].message.content or ("{}" if json_response else "")
+
+        parsed: dict[str, Any] = {}
+        if json_response:
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                cleaned = (
+                    text.strip().removeprefix("```json").removeprefix("```").removesuffix("```")
+                )
+                try:
+                    parsed = json.loads(cleaned.strip())
+                except json.JSONDecodeError as e:
+                    raise VLMError(f"LLM returned non-JSON: {text[:200]!r}") from e
+
+        usage = resp.usage
+        return VLMResult(
+            raw=text,
+            parsed=parsed,
+            model_id=model,
+            latency_ms=elapsed_ms,
+            prompt_tokens=getattr(usage, "prompt_tokens", None),
+            completion_tokens=getattr(usage, "completion_tokens", None),
+        )
+
 
 # ---- model registry ---------------------------------------------------------
 
