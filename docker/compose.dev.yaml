@@ -1,0 +1,34 @@
+# danger_zone — dev override
+#
+# Layer on top of compose.yaml for live-reload iteration:
+#   docker compose -f docker/compose.yaml -f docker/compose.dev.yaml up
+#   (or: make up-dev)
+#
+# Differences from prod:
+#   - Source dirs bind-mounted -> code edits trigger uvicorn --reload
+#   - DEBUG=true for verbose logs
+#   - No `restart: unless-stopped` (you want clean Ctrl+C in dev)
+#   - --reload scoped to app/static/config dirs ONLY (don't watch data/ or
+#     logs/ — see AGENTS.md "Uvicorn --reload must be scoped" gotcha)
+
+services:
+  app:
+    restart: "no"
+    volumes:
+      # Live source mounts override the baked-in copies. Order matters:
+      # the parent compose.yaml has already mounted data/, logs/, config/.
+      - ../app:/app/app
+      - ../static:/app/static
+    environment:
+      DEBUG: "true"
+      # Synthetic demo agent is disabled by default; set DEMO_AGENT=true in
+      # your shell before `make up-dev` to enable the 15s fake-incident loop.
+      DEMO_AGENT: "${DEMO_AGENT:-false}"
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8001
+      --reload
+      --reload-dir app
+      --reload-dir static
+      --reload-dir config
