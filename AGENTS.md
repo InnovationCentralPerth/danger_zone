@@ -55,20 +55,22 @@ config/
 | `network.client` | meraki webhook | rogue_device agent |
 | `agent.invoke.*` | POST /agents/{name}/invoke | named agent |
 | `analytics_watcher.tick` | analytics watcher loop | dashboard SSE (status dot) |
+| `mission_context.changed` | `set_context` / `clear_context` | dashboard SSE (live-refresh mission card) |
 
 ## VLM / LLM Provider
 - GitHub Models API (OpenAI-compatible): `https://models.github.ai/inference`
 - Auth: `GITHUB_TOKEN` (PAT) as Bearer token
 - Default model: `openai/gpt-4o-mini` (vision-capable)
 - Only models with `vision: true` in `config/models.yaml` can process snapshots
-- Provider abstraction lives in `app/integrations/vlm.py` — `GitHubModelsProvider.analyse_image()` sends image as base64 data URL and forces `response_format=json_object`
+- Provider abstraction lives in `app/integrations/vlm.py` — `GitHubModelsProvider.analyse_image()` sends image as base64 data URL and forces `response_format=json_object`. `GitHubModelsProvider.complete()` is the text-only sibling used by the mission-context parser (system + user prompt, optional `json_response`).
 - Active model switchable at runtime via `POST /models/active` or the dashboard dropdown
 
 ## External Agent API
 - OpenAPI at `/docs`; all routes are auth-guarded via `X-API-Key` header
-- Key groups: `incidents`, `agents`, `cameras`, `network`, `models`, `ops`
+- Key groups: `incidents`, `agents`, `cameras`, `network`, `models`, `ops`, `mission-context`
 - `GET /incidents/{id}/snapshot` returns the JPEG attached to an incident (404 if no snapshot or file missing); dashboard renders this as a 120×80 thumbnail per card.
 - `POST /agents/{name}/invoke` to trigger any named agent on demand
+- `GET/POST/DELETE /agents/context` — read, set, or clear the active mission context (PPE requirements in plain English). POST body: `{"mission": "..."}`. Triggers one cheap LLM call to extract structured items; subsequent snapshots reuse the persisted context with no extra parse cost.
 
 ## Agent active/passive mode
 - VLM-backed agents (`zone_intrusion`, `ppe_compliance`) honour a per-agent mode flag persisted in the `Setting` table
@@ -78,14 +80,28 @@ config/
 - Lives in `app/services/agent_mode.py`; gated set is `GATED_AGENTS`
 
 ## PPE compliance config
-- `cameras.yaml` → `ppe_area.required_item` controls what Agent B checks for
-- Currently supported: `"hard_hat"` (default) and `"hi_vis_vest"`
-- Add more by extending `_ITEMS` in `app/agents/ppe_compliance.py` (label, missing-count JSON key, definition string for the prompt)
+- `cameras.yaml` → `ppe_area.required_item` controls what Agent B checks for when no mission context is set (the legacy single-item fallback).
+- Currently supported single-item values: `"hard_hat"` (default) and `"hi_vis_vest"`
+- Add more to the fallback by extending `_ITEMS` in `app/agents/ppe_compliance.py` (label, missing-count JSON key, definition string for the prompt). For mission-context (multi-item) flow you don't need to touch `_ITEMS` — the LLM-parsed item names go straight into the VLM prompt.
 - **Three-way verdict** in `app/agents/ppe_compliance.py::run`:
   - `violation && conf>=0.5 && missing>=1` → `PPE_VIOLATION` (HIGH if conf>=0.85 else MEDIUM)
   - `in_area>=1 && missing==0 && conf>=0.5` → `PPE_OK` (INFO) compliance note
   - otherwise (nobody in area, or low confidence) → silent (trace only, no incident)
 - INFO incidents do NOT bump the dashboard's red live-incident counter; rendered as muted grey cards. `NON_ALERT_SEVERITIES = {'INFO'}` in `static/js/main.js`.
+
+## Mission context (dynamic PPE requirements)
+- The **differentiator** vs YOLO-style detectors: detection target set at run time in natural language. No code change, no model retraining, no YAML edit.
+- A user (or external agent) describes the required PPE in plain English; one cheap text-only LLM call extracts a structured `AgentContext { required_items, context_note, severity_hint }` which is persisted in the `Setting` table under `mission_context.active` as a JSON blob.
+- Lives in `app/services/mission_context.py`; REST surface in `app/api/mission.py` (`/agents/context` GET/POST/DELETE).
+- **Scope intentionally narrow**: PPE compliance agent only (zone_intrusion untouched); one global context (not per-camera); 1–5 items per mission; max 500 chars of input.
+- Flow when a snapshot arrives:
+  1. `ppe_compliance.run()` calls `get_context()`.
+  2. If a context exists → build multi-item VLM prompt with the parsed `required_items` + `context_note` injected; expect VLM JSON `{people_in_area, items_checked: [{item, missing_count, confidence}], overall_confidence, summary}`.
+  3. If no context → fall back to the legacy single-item path driven by `cameras.yaml`'s `ppe_area.required_item`.
+- **Cost discipline**: parsing happens exactly once (on `POST /agents/context`). Per-snapshot evaluation reuses the persisted blob; no extra LLM call.
+- Severity for multi-item violations: `severity_hint=high` + overall conf ≥0.85 → HIGH; `high` + lower conf → MEDIUM; `medium` → MEDIUM; `low` → LOW. PPE_OK stays INFO.
+- Dashboard "Active Mission" card (top of page): textarea + Set Mission button (with spinner during the LLM call), required-item chips colour-coded by severity, model + parse-time metadata, Clear button to revert to YAML default. Live-refreshes via `mission_context_changed` SSE event so multiple browsers / external agents stay in sync.
+- Demo script: type "this is an electronics lab — workers need safety glasses and anti-static wrist straps" → click Set Mission → next person-in-frame snapshot triggers a PPE check against those two items instead of the YAML default.
 
 ## Dashboard zone overlay
 - Endpoint `GET /cameras/{serial}/zones` returns `{serial, zones: [{id, label, polygon, colour, kind, required_item?}]}`. 404 on unknown serial. Polygons are normalised 0..1 coords; loader falls back to `config/cameras.example.yaml` if real config missing.

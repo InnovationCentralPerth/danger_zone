@@ -100,6 +100,7 @@ from app.api.agents import router as agents_router  # noqa: E402
 from app.api.analytics import router as analytics_router  # noqa: E402
 from app.api.cameras import router as cameras_router  # noqa: E402
 from app.api.incidents import router as incidents_router  # noqa: E402
+from app.api.mission import router as mission_router  # noqa: E402
 from app.api.models import router as models_router  # noqa: E402
 from app.api.network import router as network_router  # noqa: E402
 from app.dashboard.routes import router as dashboard_router  # noqa: E402
@@ -107,6 +108,7 @@ from app.webhooks.meraki import router as webhook_router  # noqa: E402
 
 app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 app.include_router(agents_router, prefix="/agents", tags=["agents"])
+app.include_router(mission_router, prefix="/agents", tags=["mission-context"])
 app.include_router(network_router, prefix="/network", tags=["network"])
 app.include_router(cameras_router, prefix="/cameras", tags=["cameras"])
 app.include_router(analytics_router, prefix="/cameras", tags=["analytics-watcher"])

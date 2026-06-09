@@ -219,6 +219,47 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 #watcher-pill.is-running { border-color: #28a745 !important; }
 #watcher-pill.is-running #watcher-label { color: #28a745 !important; }
 
+/* Mission context card — dynamic PPE requirements */
+.mission-card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.mission-card.mission-card-active {
+  border-color: #28a745 !important;
+  box-shadow: 0 0 0 1px rgba(40, 167, 69, 0.25);
+}
+.mission-icon {
+  display: inline-block;
+  margin-right: 0.15rem;
+  opacity: 0.85;
+}
+.mission-chip {
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.04);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+.mission-chip-sev-high   { color: #ff6b6b; }
+.mission-chip-sev-medium { color: #ffa94d; }
+.mission-chip-sev-low    { color: #ffd43b; }
+.mission-chip-default {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  background: #2a2a2a;
+  color: #adb5bd;
+  border: 1px dashed #444;
+}
+#mission-meta code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  color: #c8c8c8;
+}
+
 /* Funder logos — navbar and footer strip */
 .navbar-icp-link {
   line-height: 0;

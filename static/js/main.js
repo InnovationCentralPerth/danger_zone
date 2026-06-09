@@ -177,9 +177,19 @@ document.addEventListener('DOMContentLoaded', () => {
   loadModels();
   loadAgentModes();
   loadIncidents();
+  loadMissionContext();
   document.getElementById('snapshot-trigger').addEventListener('click', captureNow);
   document.getElementById('model-select').addEventListener('change', changeModel);
   document.getElementById('watcher-toggle').addEventListener('click', toggleWatcher);
+  document.getElementById('mission-set').addEventListener('click', setMission);
+  document.getElementById('mission-clear').addEventListener('click', clearMission);
+  document.getElementById('mission-input').addEventListener('keydown', (e) => {
+    // Ctrl/Cmd+Enter submits — Enter alone inserts newline as usual
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      setMission();
+    }
+  });
 });
 
 // ---- analytics-gated watcher ----------------------------------------------
@@ -312,6 +322,134 @@ async function toggleAgentMode(agent, current) {
     console.error('Failed to toggle agent mode', e);
   }
 }
+
+// ---- mission context (dynamic PPE requirements) --------------------------
+
+async function loadMissionContext() {
+  try {
+    const r = await fetch('/agents/context');
+    if (!r.ok) return;
+    renderMissionContext(await r.json());
+  } catch (e) {
+    console.error('Failed to load mission context', e);
+  }
+}
+
+function renderMissionContext(state) {
+  const statusLabel = document.getElementById('mission-status-label');
+  const clearBtn = document.getElementById('mission-clear');
+  const chips = document.getElementById('mission-chips');
+  const note = document.getElementById('mission-note');
+  const meta = document.getElementById('mission-meta');
+  const card = document.querySelector('.mission-card');
+  if (!chips) return;
+
+  chips.innerHTML = '';
+  note.textContent = '';
+  meta.textContent = '';
+
+  if (!state || !state.active || !state.context) {
+    statusLabel.textContent = '— default (from cameras.yaml)';
+    clearBtn.classList.add('d-none');
+    card?.classList.remove('mission-card-active');
+    const chip = document.createElement('span');
+    chip.className = 'badge mission-chip-default';
+    chip.textContent = 'YAML default (hard_hat)';
+    chips.appendChild(chip);
+    return;
+  }
+
+  const ctx = state.context;
+  statusLabel.textContent = `— active (${ctx.required_items.length} item${ctx.required_items.length === 1 ? '' : 's'})`;
+  clearBtn.classList.remove('d-none');
+  card?.classList.add('mission-card-active');
+
+  const sevClass = `mission-chip-sev-${(ctx.severity_hint || 'medium').toLowerCase()}`;
+  for (const item of ctx.required_items) {
+    const chip = document.createElement('span');
+    chip.className = `badge mission-chip ${sevClass}`;
+    chip.textContent = item;
+    chips.appendChild(chip);
+  }
+
+  if (ctx.context_note) {
+    note.textContent = `"${ctx.context_note}"`;
+  }
+
+  const parsed = ctx.parsed_at ? new Date(ctx.parsed_at + 'Z').toLocaleString() : '';
+  const bits = [];
+  if (ctx.model_id) bits.push(`parsed by <code>${escapeHtml(ctx.model_id)}</code>`);
+  if (parsed) bits.push(parsed);
+  if (ctx.severity_hint) bits.push(`severity: ${escapeHtml(ctx.severity_hint)}`);
+  meta.innerHTML = bits.join(' · ');
+}
+
+function setMissionBusy(busy) {
+  const btn = document.getElementById('mission-set');
+  const label = document.getElementById('mission-set-label');
+  const spinner = document.getElementById('mission-set-spinner');
+  btn.disabled = busy;
+  label.textContent = busy ? 'Parsing…' : 'Set Mission';
+  spinner.classList.toggle('d-none', !busy);
+}
+
+function showMissionError(msg) {
+  const el = document.getElementById('mission-error');
+  if (!msg) { el.classList.add('d-none'); el.textContent = ''; return; }
+  el.textContent = msg;
+  el.classList.remove('d-none');
+}
+
+async function setMission() {
+  const input = document.getElementById('mission-input');
+  const text = (input.value || '').trim();
+  showMissionError('');
+  if (!text) { showMissionError('Please describe the required PPE.'); return; }
+
+  setMissionBusy(true);
+  try {
+    const r = await fetch('/agents/context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mission: text }),
+    });
+    if (!r.ok) {
+      const detail = await r.json().catch(() => ({}));
+      showMissionError(detail.detail || `HTTP ${r.status}`);
+      return;
+    }
+    const state = await r.json();
+    renderMissionContext(state);
+    input.value = '';
+  } catch (e) {
+    console.error('Failed to set mission', e);
+    showMissionError('Network error — see console.');
+  } finally {
+    setMissionBusy(false);
+  }
+}
+
+async function clearMission() {
+  showMissionError('');
+  try {
+    const r = await fetch('/agents/context', { method: 'DELETE' });
+    if (!r.ok) {
+      const detail = await r.json().catch(() => ({}));
+      showMissionError(detail.detail || `HTTP ${r.status}`);
+      return;
+    }
+    renderMissionContext(await r.json());
+  } catch (e) {
+    console.error('Failed to clear mission', e);
+    showMissionError('Network error — see console.');
+  }
+}
+
+// Live-refresh when another client (or external agent) changes the mission
+evtSource.addEventListener('mission_context_changed', (e) => {
+  try { renderMissionContext(JSON.parse(e.data)); }
+  catch (err) { console.error('Bad mission_context_changed payload', err); }
+});
 
 // ---- model picker ---------------------------------------------------------
 

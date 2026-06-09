@@ -43,6 +43,51 @@
       </div>
     </div>
 
+    <!-- Active Mission (dynamic PPE context) -->
+    <div class="col-12">
+      <div class="card bg-black border-warning mission-card">
+        <div class="card-header border-secondary d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="fw-bold text-warning">
+            <span class="mission-icon">⚙</span> Active Mission
+            <small id="mission-status-label" class="text-muted ms-2 fw-normal">— default (from cameras.yaml)</small>
+          </span>
+          <button id="mission-clear" type="button" class="btn btn-sm btn-outline-secondary d-none">
+            Clear &amp; revert to default
+          </button>
+        </div>
+        <div class="card-body py-3">
+          <div class="row g-3">
+            <div class="col-lg-7">
+              <label for="mission-input" class="small text-muted mb-1">
+                Describe what PPE workers must wear (plain English):
+              </label>
+              <div class="d-flex gap-2 align-items-start">
+                <textarea id="mission-input"
+                          class="form-control bg-dark text-light border-secondary"
+                          rows="2"
+                          maxlength="500"
+                          placeholder="e.g. workers in this electronics lab must wear safety glasses and anti-static wrist straps"></textarea>
+                <button id="mission-set" type="button" class="btn btn-warning btn-sm flex-shrink-0">
+                  <span id="mission-set-label">Set Mission</span>
+                  <span id="mission-set-spinner" class="spinner-border spinner-border-sm ms-1 d-none" role="status"></span>
+                </button>
+              </div>
+              <div id="mission-error" class="small text-danger mt-1 d-none"></div>
+              <small class="text-muted">One LLM call parses the instruction; the PPE agent then checks every required item on each snapshot. No restart, no code change.</small>
+            </div>
+            <div class="col-lg-5">
+              <div class="small text-muted mb-1">Currently checking for:</div>
+              <div id="mission-chips" class="d-flex flex-wrap gap-1 mb-2">
+                <span class="badge bg-secondary mission-chip-default">loading…</span>
+              </div>
+              <div id="mission-note" class="small fst-italic text-muted"></div>
+              <div id="mission-meta" class="small text-secondary mt-1"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Camera tile -->
     <div class="col-12">
       <div class="card bg-black border-secondary">
