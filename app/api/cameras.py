@@ -73,12 +73,14 @@ async def get_camera_zones(serial: str) -> dict:
     Coordinates are normalised (0..1) (x, y) from the snapshot's top-left.
     Suitable for direct rendering as SVG polygons with a viewBox of 0..1
     (or scaled to 100 for percentage convenience).
-    """
-    from app.services.config_loader import load_cameras
 
-    cam = next((c for c in load_cameras() if c.get("serial") == serial), None)
-    if cam is None:
-        raise HTTPException(status_code=404, detail=f"Unknown camera serial: {serial}")
+    Cameras with no entry in ``config/cameras.yaml`` fall back to full-frame
+    polygons so Meraki-discovered cameras work out of the box without YAML
+    edits. Override polygons by adding an entry to ``cameras.yaml``.
+    """
+    from app.services.config_loader import get_camera_config
+
+    cam = get_camera_config(serial)
 
     zones: list[dict] = []
     excl = cam.get("exclusion_zone") or {}

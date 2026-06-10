@@ -281,15 +281,32 @@ async def test_restore_on_startup_respawns_enabled_loops():
         analytics_watcher._tasks.clear()
         analytics_watcher._runtime.clear()
 
-        with patch(
-            "app.services.config_loader.load_cameras",
-            return_value=[{"serial": "SERIAL-A"}],
-        ):
-            analytics_watcher.restore_on_startup()
+        # Restoration is now driven by the Settings table, NOT cameras.yaml.
+        # No `load_cameras` patch is needed; even a camera that isn't in YAML
+        # (e.g. one enabled via the dashboard from a Meraki-discovered serial)
+        # must be respawned on restart.
+        analytics_watcher.restore_on_startup()
 
         await asyncio.sleep(0.05)
         assert analytics_watcher.get_state("SERIAL-A").running is True
         await analytics_watcher.disable("SERIAL-A")
+
+
+async def test_restore_on_startup_ignores_disabled_serials():
+    """Serials with ``enabled=false`` in the DB must not be respawned."""
+    mock_client = AsyncMock()
+    mock_client.get_camera_analytics_recent = AsyncMock(return_value=_ff("T1"))
+    with patch("app.services.analytics_watcher.get_client", return_value=mock_client):
+        await analytics_watcher.enable("SERIAL-A", interval_seconds=2)
+        await analytics_watcher.disable("SERIAL-A")
+        for _s, t in list(analytics_watcher._tasks.items()):
+            t.cancel()
+        analytics_watcher._tasks.clear()
+        analytics_watcher._runtime.clear()
+
+        analytics_watcher.restore_on_startup()
+        await asyncio.sleep(0.05)
+        assert analytics_watcher.get_state("SERIAL-A").running is False
 
 
 # ---- pure helpers ----------------------------------------------------------

@@ -176,6 +176,15 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
   border-left: 3px solid var(--zone-colour, #888);
 }
 
+/* Camera selector dropdown — matches dark header chrome. */
+.camera-select {
+  max-width: 18rem;
+  font-size: 0.85rem;
+}
+.camera-select:disabled {
+  opacity: 0.5;
+}
+
 #zone-overlay polygon { transition: fill-opacity 0.2s ease; }
 #zone-overlay polygon:hover { fill-opacity: 0.35; }
 

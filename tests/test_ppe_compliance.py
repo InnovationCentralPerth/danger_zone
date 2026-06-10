@@ -76,7 +76,7 @@ async def test_creates_incident_on_violation(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.9, 2, 1))
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -98,7 +98,7 @@ async def test_medium_severity_when_lower_confidence(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.6))
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -117,7 +117,7 @@ async def test_files_ppe_ok_when_compliant(tmp_path):
     )
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -140,7 +140,7 @@ async def test_silent_when_nobody_in_area(tmp_path):
     )
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -155,7 +155,7 @@ async def test_no_incident_when_low_confidence(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.3))
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -173,7 +173,7 @@ async def test_files_ppe_ok_when_violation_flag_wrong_but_zero_missing(tmp_path)
     )
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -193,7 +193,7 @@ async def test_cooldown_blocks_second_run(tmp_path):
     cfg[0]["cooldown_seconds"] = 60
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=cfg),
+        patch("app.services.config_loader.load_cameras", return_value=cfg),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -213,7 +213,7 @@ async def test_no_ppe_area_skips(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.9))
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=cfg),
+        patch("app.services.config_loader.load_cameras", return_value=cfg),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
     ):
         await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
@@ -244,7 +244,7 @@ async def test_hi_vis_vest_required_item(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=hivis_result)
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=cfg),
+        patch("app.services.config_loader.load_cameras", return_value=cfg),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -269,7 +269,7 @@ async def test_unknown_required_item_falls_back_to_hard_hat(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(False, 0.95, 1, 0))
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=cfg),
+        patch("app.services.config_loader.load_cameras", return_value=cfg),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
     ):
         await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
@@ -289,7 +289,7 @@ async def test_passive_mode_skips_vlm_call(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.9))
 
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
     ):
@@ -350,7 +350,7 @@ async def test_multi_item_violation_fires_with_breakdown(tmp_path):
         )
     )
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.get_context", return_value=ctx),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
@@ -386,7 +386,7 @@ async def test_multi_item_severity_high_when_hint_high_and_confident(tmp_path):
         )
     )
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.get_context", return_value=ctx),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
@@ -412,7 +412,7 @@ async def test_multi_item_ppe_ok_when_all_compliant(tmp_path):
         )
     )
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.get_context", return_value=ctx),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
@@ -438,7 +438,7 @@ async def test_multi_item_silent_when_nobody_in_area(tmp_path):
         )
     )
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.get_context", return_value=ctx),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
@@ -460,7 +460,7 @@ async def test_multi_item_low_confidence_silenced(tmp_path):
         )
     )
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.get_context", return_value=ctx),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
@@ -488,7 +488,7 @@ async def test_multi_item_per_item_low_confidence_excluded_from_violations(tmp_p
         )
     )
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.get_context", return_value=ctx),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
@@ -519,7 +519,7 @@ async def test_multi_item_context_when_active_takes_priority_over_yaml_default(t
         )
     )
     with (
-        patch("app.agents.ppe_compliance.load_cameras", return_value=cfg),
+        patch("app.services.config_loader.load_cameras", return_value=cfg),
         patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
         patch("app.agents.ppe_compliance.get_context", return_value=ctx),
         patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,

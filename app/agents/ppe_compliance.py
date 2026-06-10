@@ -33,7 +33,7 @@ from app.models.db import IncidentSeverity, IncidentType
 from app.runtime.bus import bus
 from app.runtime.trace import AgentRun
 from app.services.agent_mode import is_active
-from app.services.config_loader import load_cameras
+from app.services.config_loader import get_camera_config
 from app.services.incidents import create_incident
 from app.services.mission_context import AgentContext, get_context
 from app.services.zone import draw_zone_overlay
@@ -109,11 +109,14 @@ Rules:
     return prompt, missing_key
 
 
-def _camera_config(serial: str) -> dict[str, Any] | None:
-    for c in load_cameras():
-        if c.get("serial") == serial:
-            return c
-    return None
+def _camera_config(serial: str) -> dict[str, Any]:
+    """Resolve per-camera config, falling back to full-frame defaults.
+
+    Meraki-discovered cameras with no entry in ``cameras.yaml`` get a
+    synthetic full-frame PPE area so the agent still has something to draw
+    and reason about.
+    """
+    return get_camera_config(serial)
 
 
 # ---- multi-item prompt (mission context) ----------------------------------
@@ -230,9 +233,6 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
         return
 
     cfg = _camera_config(serial)
-    if not cfg:
-        logger.debug("No camera config for %s; skipping ppe_compliance", serial)
-        return
 
     area = cfg.get("ppe_area")
     if not area or not area.get("polygon"):
