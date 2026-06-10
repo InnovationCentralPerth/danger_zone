@@ -1,0 +1,54 @@
+# danger_zone — Docker build context excludes
+# Keep the image small and avoid baking in secrets / runtime state.
+
+# Python caches and virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Runtime data (mounted via volumes, not baked in)
+data/
+logs/
+
+# Tests not needed in the runtime image
+tests/
+
+# Docs not needed at runtime
+*.md
+LICENSE
+docs/
+
+# Build artefacts
+dist/
+build/
+*.egg-info/
+
+# Local secrets / site-specific config (mounted via volumes or env_file)
+.env
+.env~
+.env.local
+config/cameras.yaml
+config/whitelist.yaml
+
+# Local-only convenience
+Makefile
+
+# Don't recurse into compose's own state
+docker/compose.dev.yaml.local

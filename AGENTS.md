@@ -17,7 +17,11 @@
 | Lint | `ruff check .` |
 | Format | `ruff format .` |
 | Typecheck | `mypy app` |
-| Docker (build+run) | `docker compose -f docker/compose.yaml up --build` |
+| Docker — prod (detached) | `make up` (or `docker compose -f docker/compose.yaml up -d`) |
+| Docker — dev (live reload) | `make up-dev` (bind-mounts source; `--reload` watches `app/`, `static/`, `config/`) |
+| Docker — logs / shell / down | `make logs` / `make shell` / `make down` |
+| Docker — tests inside container | `make test` |
+| Makefile help | `make help` |
 
 ## Architecture
 
@@ -146,6 +150,15 @@ config/
 - `config/cameras.yaml` — **gitignored**; copy from `config/cameras.example.yaml`. Camera serial, network_id, exclusion zone polygon (normalised 0–1 coords), PPE area polygon, cooldown_seconds. Loader falls back to the `.example.yaml` if the real file is missing.
 - `config/whitelist.yaml` — **gitignored**; copy from `config/whitelist.example.yaml`. MAC entries with label/vendor; separate `blacklist` section.
 - `config/models.yaml` — checked in; model catalogue, `default` key sets startup default.
+
+## Docker stack
+- `docker/Dockerfile` — multi-stage. Builder stage uses `ghcr.io/astral-sh/uv` and `uv sync --frozen --no-dev` against `uv.lock` for reproducible installs. Runtime stage is `python:3.12-slim` + `tini` (clean SIGTERM → asyncio task cancellation) + `curl` (for HEALTHCHECK). Runs as non-root `appuser` (UID/GID default `1000:1000`, override via `--build-arg UID=$(id -u) GID=$(id -g)`).
+- `docker/compose.yaml` — prod stack. Image tag `danger-zone:latest`, container name `danger_zone`. Ports `8001:8001`. Bind volumes: `../data:/app/data` (SQLite + snapshots), `../logs:/app/logs`, `../config:/app/config:ro`. `env_file: ../.env`. `restart: unless-stopped`. Healthcheck hits `/healthz` every 30s.
+- `docker/compose.dev.yaml` — override layered with `-f docker/compose.yaml -f docker/compose.dev.yaml`. Bind-mounts `../app` and `../static` for live `--reload`. Sets `DEBUG=true`. `--reload` is scoped to `app/`, `static/`, `config/` only (see gotcha re: reload-death-loop). Drops `restart: unless-stopped` so Ctrl+C cleanly stops.
+- `Makefile` — wrappers around both compose invocations. Common targets: `make build`, `make up`, `make up-dev`, `make down`, `make logs`, `make shell`, `make test` (pytest in a one-off container), `make rebuild` (`--no-cache`), `make ps`, `make clean`. `make help` lists everything.
+- `.dockerignore` — excludes `data/`, `logs/`, `.venv/`, `tests/`, `*.md`, `.env`, `config/cameras.yaml`, `config/whitelist.yaml`, and all build/cache dirs. The image only carries `.example.yaml` configs; real configs are mounted at runtime.
+- `uv.lock` is **tracked in git** so Docker builds are reproducible. Refresh with `uv lock` after editing `pyproject.toml`.
+- Meraki webhooks still need a public HTTPS URL even in Docker — `tailscale funnel 8001` on the host works (the container's port is bound to `0.0.0.0:8001` on the host).
 
 ## Meraki integration notes
 - API rate limit: 10 req/s per org; all calls need backoff + retry

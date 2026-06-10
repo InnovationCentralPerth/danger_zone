@@ -1,13 +1,47 @@
+# danger_zone — production-style compose
+#
+# Builds the hardened multi-stage image, persists data + logs to host volumes,
+# mounts config read-only so you can edit cameras.yaml / whitelist.yaml on the
+# host without a rebuild.
+#
+# Daily ops (via Makefile):  make build  |  make up  |  make logs  |  make down
+# Direct:                    docker compose -f docker/compose.yaml up -d
+#
+# For live-reload dev iteration, layer the dev override on top:
+#   docker compose -f docker/compose.yaml -f docker/compose.dev.yaml up
+
 services:
   app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      # Match the build UID/GID to your host user so volume-mounted files stay
+      # owner-correct. Override on the build command line if needed.
+      args:
+        UID: "1000"
+        GID: "1000"
+    image: danger-zone:latest
+    container_name: danger_zone
     ports:
       - "8001:8001"
     volumes:
+      # SQLite DB + persisted snapshot JPEGs
       - ../data:/app/data
-      - ../config:/app/config
+      # Server + structured logs
+      - ../logs:/app/logs
+      # Site-specific config (cameras.yaml, whitelist.yaml, models.yaml)
+      # Read-only — the app never writes to config/.
+      - ../config:/app/config:ro
     env_file:
       - ../.env
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Run as the non-root user baked into the image (UID 1000 by default).
+    # Compose inherits the USER directive from the Dockerfile, but spelling
+    # it out here makes it explicit + greppable.
+    user: "1000:1000"
