@@ -43,7 +43,7 @@ app/
     trace.py         — Decorator for recording AgentTrace rows
   webhooks/meraki.py — HMAC-verified webhook receiver; dispatches onto bus
 config/
-  cameras.yaml       — Single camera serial, exclusion polygon, PPE area polygon
+  cameras.yaml       — Optional per-camera overrides (zone polygons, cooldown). Cameras are discovered live from Meraki; YAML entries override the full-frame defaults.
   whitelist.yaml     — MAC whitelist + blacklist
   models.yaml        — VLM model catalogue with vision flag
 ```
@@ -107,8 +107,15 @@ config/
 - Dashboard "Active Mission" card (top of page): textarea + Set Mission button (with spinner during the LLM call), required-item chips colour-coded by severity, model + parse-time metadata, Clear button to revert to YAML default. Live-refreshes via `mission_context_changed` SSE event so multiple browsers / external agents stay in sync.
 - Demo script: type "this is an electronics lab — workers need safety glasses and anti-static wrist straps" → click Set Mission → next person-in-frame snapshot triggers a PPE check against those two items instead of the YAML default.
 
+## Multi-camera support
+- Cameras are discovered live from Meraki via `GET /cameras/devices` (org-level `getOrganizationDevices` filtered to MV models). `config/cameras.yaml` is now an **optional per-camera override** file — entries only matter when you want non-default zone polygons, cooldowns, or PPE items for a specific serial.
+- Cameras without a YAML entry use `_default_camera_config()` in `app/services/config_loader.py:get_camera_config()`: full-frame polygon `[[0,0],[1,0],[1,1],[0,1]]` for both exclusion and PPE zones, `required_item: "hard_hat"`, `cooldown_seconds: 10`. This means a freshly added Meraki camera works end-to-end with zero config edits.
+- `GET /cameras/analytics-watcher` returns the **union** of YAML cameras + Meraki-discovered cameras (YAML order first, then Meraki-only). Silent fallback to YAML-only if Meraki is unreachable so the dashboard still works offline.
+- Watchers persist their enabled state in the `Setting` table; `analytics_watcher.restore_on_startup()` now scans the DB (not YAML) so watchers enabled on Meraki-only cameras survive restarts.
+- Dashboard `#camera-select` dropdown switches the active camera tile. Selection persists in `localStorage` (`dz.cameraSerial`) so a reload keeps you on the same camera. The watcher and agents run on **all** discovered cameras simultaneously — the dropdown only changes what you're looking at, incidents from every camera continue to land in the feed.
+
 ## Dashboard zone overlay
-- Endpoint `GET /cameras/{serial}/zones` returns `{serial, zones: [{id, label, polygon, colour, kind, required_item?}]}`. 404 on unknown serial. Polygons are normalised 0..1 coords; loader falls back to `config/cameras.example.yaml` if real config missing.
+- Endpoint `GET /cameras/{serial}/zones` returns `{serial, zones: [{id, label, polygon, colour, kind, required_item?}]}`. Cameras with no `cameras.yaml` entry fall back to full-frame polygons (0,0 → 1,1) and `required_item: "hard_hat"` so Meraki-discovered cameras work without a YAML edit. Polygons are normalised 0..1 coords; loader falls back to `config/cameras.example.yaml` if real config missing.
 - `static/js/main.js::loadZones()` builds SVG polygons inside `#zone-overlay` (viewBox 0 0 100 100, coords * 100) and renders pills in `#zone-legend`. Overlay revealed only after a snapshot loads.
 - Exclusion zone = red `#ff3c3c` (`kind: "intrusion"`); PPE area = yellow `#ffd200` (`kind: "ppe"`).
 
@@ -147,7 +154,7 @@ config/
 - `DEMO_AGENT=true` runs the synthetic demo agent (fires fake incidents every 15s). Decoupled from `DEBUG` so you can run verbose logs against the real camera without synthetic noise.
 
 ## Config files
-- `config/cameras.yaml` — **gitignored**; copy from `config/cameras.example.yaml`. Camera serial, network_id, exclusion zone polygon (normalised 0–1 coords), PPE area polygon, cooldown_seconds. Loader falls back to the `.example.yaml` if the real file is missing.
+- `config/cameras.yaml` — **gitignored**; copy from `config/cameras.example.yaml`. Optional per-camera overrides (zone polygons, cooldown, PPE item). Cameras are discovered live via Meraki `GET /organizations/{id}/devices`; YAML entries only override the full-frame defaults for the listed serials. Loader falls back to the `.example.yaml` if the real file is missing.
 - `config/whitelist.yaml` — **gitignored**; copy from `config/whitelist.example.yaml`. MAC entries with label/vendor; separate `blacklist` section.
 - `config/models.yaml` — checked in; model catalogue, `default` key sets startup default.
 

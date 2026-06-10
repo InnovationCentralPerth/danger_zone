@@ -77,18 +77,75 @@ function openSnapshotModal({ id, type, severity, time, summary }) {
 // ---- camera tile ----------------------------------------------------------
 
 async function loadConfiguredCamera() {
+  // Discovery: prefer the live Meraki list (covers cameras not in cameras.yaml),
+  // fall back to local YAML config if Meraki is unreachable. We merge both
+  // lists so a YAML entry's friendly name beats the bare serial from Meraki.
+  let yamlCams = [];
   try {
     const r = await fetch('/cameras/');
-    const cams = await r.json();
-    if (cams && cams.length) {
-      cameraSerial = cams[0].serial;
-      document.getElementById('camera-serial').textContent =
-        `${cams[0].name} (${cameraSerial})`;
-      refreshSnapshot();  // try to show whatever's on disk
-      loadZones();
-      loadWatcherState();
-    }
-  } catch (e) { console.error('Failed to load camera config', e); }
+    yamlCams = (await r.json()) || [];
+  } catch (e) { console.warn('Failed to load /cameras/', e); }
+
+  let merakiCams = [];
+  try {
+    const r = await fetch('/cameras/devices');
+    if (r.ok) merakiCams = (await r.json()) || [];
+  } catch (e) { console.warn('Failed to load /cameras/devices', e); }
+
+  // Build the merged camera list: YAML entries first (preserves friendly
+  // name + location), then any Meraki-only serials with their device name.
+  const yamlBySerial = new Map(yamlCams.map((c) => [c.serial, c]));
+  const merged = [];
+  for (const c of yamlCams) merged.push({ serial: c.serial, label: c.name || c.serial });
+  for (const d of merakiCams) {
+    if (yamlBySerial.has(d.serial)) continue;
+    merged.push({ serial: d.serial, label: d.name || d.serial });
+  }
+
+  const select = document.getElementById('camera-select');
+  select.innerHTML = '';
+  if (merged.length === 0) {
+    select.innerHTML = '<option value="">No cameras found</option>';
+    select.disabled = true;
+    return;
+  }
+  for (const cam of merged) {
+    const opt = document.createElement('option');
+    opt.value = cam.serial;
+    opt.textContent = `${cam.label} (${cam.serial})`;
+    select.appendChild(opt);
+  }
+  select.disabled = false;
+  select.addEventListener('change', (e) => selectCamera(e.target.value));
+
+  // Auto-select first camera. Persist the last choice in localStorage so a
+  // reload keeps you on the same camera.
+  const remembered = localStorage.getItem('dz.cameraSerial');
+  const initial =
+    (remembered && merged.find((c) => c.serial === remembered)) ? remembered : merged[0].serial;
+  select.value = initial;
+  selectCamera(initial);
+}
+
+function selectCamera(serial) {
+  if (!serial) return;
+  cameraSerial = serial;
+  localStorage.setItem('dz.cameraSerial', serial);
+  document.getElementById('camera-serial').textContent = serial;
+  // Reset transient camera-tile state when switching.
+  const img = document.getElementById('camera-image');
+  const empty = document.getElementById('camera-empty');
+  const overlay = document.getElementById('zone-overlay');
+  const legend = document.getElementById('zone-legend');
+  img.classList.add('d-none');
+  overlay.classList.add('d-none');
+  legend.classList.add('d-none');
+  overlay.innerHTML = '';
+  legend.innerHTML = '';
+  empty.classList.remove('d-none');
+  refreshSnapshot();
+  loadZones();
+  loadWatcherState();
 }
 
 async function loadZones() {

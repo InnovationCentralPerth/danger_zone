@@ -77,7 +77,7 @@ async def test_creates_incident_on_high_confidence(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.92))
 
     with (
-        patch("app.agents.zone_intrusion.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
         patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
     ):
@@ -98,7 +98,7 @@ async def test_no_incident_when_no_person(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(False, 0.9))
 
     with (
-        patch("app.agents.zone_intrusion.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
         patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
     ):
@@ -113,7 +113,7 @@ async def test_no_incident_when_low_confidence(tmp_path):
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.3))
 
     with (
-        patch("app.agents.zone_intrusion.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
         patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
     ):
@@ -131,7 +131,7 @@ async def test_cooldown_blocks_second_run(tmp_path):
     cfg[0]["cooldown_seconds"] = 60
 
     with (
-        patch("app.agents.zone_intrusion.load_cameras", return_value=cfg),
+        patch("app.services.config_loader.load_cameras", return_value=cfg),
         patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
         patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
     ):
@@ -144,16 +144,24 @@ async def test_cooldown_blocks_second_run(tmp_path):
     assert ci.await_count == 1
 
 
-async def test_unknown_camera_is_noop(tmp_path):
+async def test_unknown_camera_uses_full_frame_defaults(tmp_path):
+    """Cameras not in cameras.yaml must still be processed.
+
+    Meraki-discovered cameras (those without a YAML override) get full-frame
+    polygons and the default cooldown. The agent should run end-to-end on
+    them without skipping.
+    """
     snap = _write_snapshot(tmp_path)
     mock_provider = MagicMock()
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.9))
     with (
-        patch("app.agents.zone_intrusion.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
+        patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
     ):
-        await zone_intrusion.run("UNKNOWN", snap, trigger="t")
-    mock_provider.analyse_image.assert_not_awaited()
+        await zone_intrusion.run("MERAKI-ONLY", snap, trigger="t")
+    mock_provider.analyse_image.assert_awaited_once()
+    ci.assert_awaited_once()
 
 
 async def test_passive_mode_skips_vlm_call(tmp_path):
@@ -162,7 +170,7 @@ async def test_passive_mode_skips_vlm_call(tmp_path):
     mock_provider = MagicMock()
     mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.9))
     with (
-        patch("app.agents.zone_intrusion.load_cameras", return_value=_camera_cfg()),
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
         patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
     ):
         await zone_intrusion.run("TEST-SERIAL", snap, trigger="t")

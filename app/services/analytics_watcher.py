@@ -162,7 +162,11 @@ def get_state(serial: str) -> WatcherState:
 
 
 def all_states() -> list[WatcherState]:
-    """One WatcherState per camera in the local config."""
+    """One WatcherState per camera in the local YAML config.
+
+    Kept for backwards compatibility with callers that only want YAML cameras.
+    Use the ``/cameras/analytics-watcher`` API for the YAML + Meraki union.
+    """
     from app.services.config_loader import load_cameras
 
     return [get_state(c["serial"]) for c in load_cameras()]
@@ -187,17 +191,31 @@ async def disable(serial: str) -> WatcherState:
 
 
 def restore_on_startup() -> None:
-    """Re-spawn loops for every serial persisted as enabled. Idempotent."""
-    from app.services.config_loader import load_cameras
+    """Re-spawn loops for every serial persisted as enabled. Idempotent.
 
-    for cam in load_cameras():
-        serial = cam.get("serial")
+    Scans the ``Setting`` table for any ``analytics_watcher.<serial>.enabled``
+    row set to ``"true"`` and respawns its loop. This lets watchers survive
+    a restart even for cameras that aren't in ``cameras.yaml`` (i.e. cameras
+    discovered live from Meraki and enabled via the dashboard).
+    """
+    prefix = "analytics_watcher."
+    suffix = ".enabled"
+    with Session(get_engine()) as session:
+        rows = session.exec(
+            select(Setting).where(
+                Setting.key.startswith(prefix),  # type: ignore[attr-defined]
+                Setting.key.endswith(suffix),  # type: ignore[attr-defined]
+            )
+        ).all()
+    for row in rows:
+        if row.value != "true":
+            continue
+        serial = row.key[len(prefix) : -len(suffix)]
         if not serial:
             continue
-        enabled, interval = _read_state(serial)
-        if enabled:
-            _spawn(serial, interval)
-            logger.info("analytics_watcher: restored %s @ %ds", serial, interval)
+        _, interval = _read_state(serial)
+        _spawn(serial, interval)
+        logger.info("analytics_watcher: restored %s @ %ds", serial, interval)
 
 
 # ---- task lifecycle --------------------------------------------------------

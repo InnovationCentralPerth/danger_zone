@@ -48,11 +48,27 @@ def test_returns_both_zones():
     assert len(excl["polygon"]) == 4
 
 
-def test_unknown_serial_404():
+def test_unknown_serial_returns_full_frame_defaults():
+    """Cameras with no YAML entry must still get usable zones.
+
+    A Meraki-discovered camera (or any serial not in cameras.yaml) should
+    receive full-frame polygons so the dashboard renders and the agents have
+    something to reason about.
+    """
     with patch("app.services.config_loader.load_cameras", return_value=_cfg()):
         client = TestClient(app)
-        r = client.get("/cameras/NOT-A-CAM/zones")
-    assert r.status_code == 404
+        r = client.get("/cameras/NOT-IN-YAML/zones")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["serial"] == "NOT-IN-YAML"
+    ids = {z["id"] for z in data["zones"]}
+    assert ids == {"exclusion_zone", "ppe_area"}
+    # Both zones should be the full-frame rectangle.
+    for z in data["zones"]:
+        polygon = z["polygon"]
+        assert polygon == [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+    ppe = next(z for z in data["zones"] if z["id"] == "ppe_area")
+    assert ppe["required_item"] == "hard_hat"
 
 
 def test_omits_missing_polygons():

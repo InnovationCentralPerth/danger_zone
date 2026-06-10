@@ -21,7 +21,7 @@ from app.models.db import IncidentSeverity, IncidentType
 from app.runtime.bus import BusEvent, bus
 from app.runtime.trace import AgentRun
 from app.services.agent_mode import is_active
-from app.services.config_loader import load_cameras
+from app.services.config_loader import get_camera_config
 from app.services.incidents import create_incident
 from app.services.zone import draw_zone_overlay
 
@@ -55,11 +55,14 @@ Rules:
 """
 
 
-def _camera_config(serial: str) -> dict[str, Any] | None:
-    for c in load_cameras():
-        if c.get("serial") == serial:
-            return c
-    return None
+def _camera_config(serial: str) -> dict[str, Any]:
+    """Resolve per-camera config, falling back to full-frame defaults.
+
+    Meraki-discovered cameras with no entry in ``cameras.yaml`` get a
+    synthetic full-frame polygon so the agent still has something to draw
+    and reason about.
+    """
+    return get_camera_config(serial)
 
 
 async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot") -> None:
@@ -69,9 +72,6 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
         return
 
     cfg = _camera_config(serial)
-    if not cfg:
-        logger.debug("No camera config for %s; skipping zone_intrusion", serial)
-        return
 
     zone = cfg.get("exclusion_zone")
     if not zone or not zone.get("polygon"):
