@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danger Zone - Demo Poster</title>
+    <style>
+        /* CSS reset and print optimization */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            /* Clean, high-contrast palette for printing */
+            background-color: #ffffff;
+            color: #1e293b;
+            line-height: 1.5;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Standard A4 Size */
+        .poster {
+            width: 210mm;
+            height: 297mm;
+            padding: 12mm;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: white;
+            /* Subtle grid background for a "tech/blueprint" feel */
+            background-image: 
+                linear-gradient(rgba(14, 165, 233, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(14, 165, 233, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            color: #0f172a;
+        }
+
+        .highlight-blue { color: #0284c7; }
+        .highlight-red { color: #dc2626; }
+        .highlight-green { color: #16a34a; }
+
+        /* Header Section */
+        .header {
+            text-align: center;
+            margin-bottom: 8mm;
+            border-bottom: 3px solid #0f172a;
+            padding-bottom: 4mm;
+        }
+
+        .title-block {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4mm;
+            margin-bottom: 2mm;
+        }
+
+        .dot {
+            width: 14px;
+            height: 14px;
+            background-color: #dc2626;
+            border-radius: 50%;
+        }
+
+        h1 {
+            font-size: 34pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            font-size: 14pt;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        /* Intro Text */
+        .intro {
+            font-size: 12pt;
+            text-align: center;
+            margin-bottom: 8mm;
+            max-width: 95%;
+            margin-left: auto;
+            margin-right: auto;
+            color: #334155;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        /* Two Column Layout for Main Content */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6mm;
+            flex-grow: 1;
+        }
+
+        /* Feature Cards */
+        .card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 5mm;
+            break-inside: avoid;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 3mm;
+            margin-bottom: 3mm;
+        }
+
+        .card-icon {
+            font-size: 20pt;
+        }
+
+        .card h2 {
+            font-size: 14pt;
+            font-weight: 700;
+        }
+
+        .card p {
+            font-size: 10pt;
+            margin-bottom: 3mm;
+            color: #475569;
+            line-height: 1.3;
+        }
+
+        .card ul {
+            list-style: none;
+            font-size: 9.5pt;
+            line-height: 1.3;
+        }
+
+        .card ul li {
+            margin-bottom: 2mm;
+            padding-left: 4mm;
+            position: relative;
+        }
+
+        .card ul li::before {
+            content: "•";
+            color: #0284c7;
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        /* Specific Card Styling */
+        .border-red { border-top: 4px solid #dc2626; }
+        .border-yellow { border-top: 4px solid #eab308; }
+        .border-blue { border-top: 4px solid #0284c7; }
+        .border-green { border-top: 4px solid #16a34a; }
+
+        /* The Innovation Section (Spans Full Width) */
+        .innovation-banner {
+            grid-column: span 2;
+            background: #0f172a;
+            color: white;
+            border-radius: 10px;
+            padding: 5mm;
+            margin-top: 2mm;
+        }
+
+        .innovation-banner h2 {
+            color: white;
+            font-size: 14pt;
+            margin-bottom: 2mm;
+            display: flex;
+            align-items: center;
+            gap: 3mm;
+        }
+
+        .innovation-banner h2::before {
+            content: "💡";
+        }
+
+        .innovation-banner p {
+            font-size: 10.5pt;
+            color: #cbd5e1;
+            margin-bottom: 4mm;
+        }
+
+        .tech-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4mm;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 8.5pt;
+        }
+
+        .flow-step {
+            text-align: center;
+        }
+
+        .arrow {
+            color: #38bdf8;
+            font-weight: bold;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: auto;
+            border-top: 2px solid #e2e8f0;
+            padding-top: 4mm;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 9.5pt;
+            color: #64748b;
+        }
+
+        .tech-stack-list {
+            display: flex;
+            gap: 2mm;
+            margin-top: 1mm;
+        }
+
+        .tech-tag {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 8.5pt;
+        }
+
+        /* Print Specifics */
+        @media print {
+            body { background: none; }
+            .poster { box-shadow: none; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="poster">
+        
+        <div class="header">
+            <div class="title-block">
+                <div class="dot"></div>
+                <h1>Danger Zone</h1>
+            </div>
+            <div class="subtitle">Agentic AI & Vision Language Physical Security</div>
+        </div>
+
+        <p class="intro">
+            You are looking at an event-driven AI application that turns standard security cameras into proactive, thinking agents. Instead of just recording video, it uses Vision Language Models (VLMs) to analyze scenes, enforce safety rules, and log incidents autonomously.
+        </p>
+
+        <div class="main-content">
+            
+            <!-- How to read the demo -->
+            <div class="card border-blue">
+                <div class="card-header">
+                    <span class="card-icon">👁️</span>
+                    <h2>Reading the Dashboard</h2>
+                </div>
+                <p>The screen shows a real-time feed of events processed by autonomous agents.</p>
+                <ul>
+                    <li><strong>Red Polygons:</strong> Exclusion zones. The system alerts if humans enter these areas.</li>
+                    <li><strong>Yellow Polygons:</strong> PPE required areas. The system checks if workers are wearing the required gear.</li>
+                    <li><strong>Agent Traces:</strong> Watch the log stream to see the AI "thinking" and reasoning about the images it captures.</li>
+                </ul>
+            </div>
+
+            <!-- Dynamic Mission Context -->
+            <div class="card border-green">
+                <div class="card-header">
+                    <span class="card-icon">💬</span>
+                    <h2>Dynamic "Mission" Context</h2>
+                </div>
+                <p>The core innovation over legacy systems.</p>
+                <ul>
+                    <li>No code changes or model retraining required to change what the system detects.</li>
+                    <li>We type safety rules in <strong>plain English</strong> (e.g., <em>"Require safety glasses"</em>).</li>
+                    <li>An LLM parses the request and updates the Vision Agent's instructions instantly.</li>
+                </ul>
+            </div>
+
+            <!-- Smart Capture -->
+            <div class="card border-yellow">
+                <div class="card-header">
+                    <span class="card-icon">🧠</span>
+                    <h2>Smart Analytics Watcher</h2>
+                </div>
+                <p>AI processing is expensive. We don't send every frame to the cloud.</p>
+                <ul>
+                    <li>The system polls lightweight, on-camera Meraki analytics.</li>
+                    <li>Only when a person is detected does the system trigger a snapshot.</li>
+                    <li>Drastically reduces API costs and bandwidth while remaining responsive.</li>
+                </ul>
+            </div>
+
+            <!-- Architecture overview -->
+            <div class="card border-red">
+                <div class="card-header">
+                    <span class="card-icon">⚙️</span>
+                    <h2>Under the Hood</h2>
+                </div>
+                <p>A decoupled, event-driven architecture.</p>
+                <ul>
+                    <li><strong>FastAPI & Async:</strong> Handles multiple concurrent camera streams.</li>
+                    <li><strong>Event Bus:</strong> Webhooks trigger events, agents subscribe and react independently.</li>
+                    <li><strong>HTMX & SSE:</strong> Real-time frontend updates without heavy JS frameworks.</li>
+                </ul>
+            </div>
+
+            <!-- The Innovation Banner -->
+            <div class="innovation-banner">
+                <h2>The VLM Pipeline</h2>
+                <p>How a physical event becomes an intelligent alert:</p>
+                <div class="tech-flow">
+                    <div class="flow-step">
+                        <div>📷 Meraki Camera</div>
+                        <div>(Detects Motion)</div>
+                    </div>
+                    <div class="arrow">➔</div>
+                    <div class="flow-step">
+                        <div>🎣 Webhook / Poller</div>
+                        <div>(Triggers Event)</div>
+                    </div>
+                    <div class="arrow">➔</div>
+                    <div class="flow-step">
+                        <div>🤖 AI Agent</div>
+                        <div>(Fetches Image)</div>
+                    </div>
+                    <div class="arrow">➔</div>
+                    <div class="flow-step">
+                        <div>🧠 GitHub Models VLM</div>
+                        <div>(Analyzes against Rules)</div>
+                    </div>
+                    <div class="arrow">➔</div>
+                    <div class="flow-step">
+                        <div>🚨 Dashboard</div>
+                        <div>(Updates Live)</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="footer">
+            <div>
+                <strong>Try the Demo:</strong> Ask to change the PPE requirements and watch the AI adapt.
+            </div>
+            <div>
+                <div style="text-align: right; margin-bottom: 2px;">Core Technologies</div>
+                <div class="tech-stack-list">
+                    <span class="tech-tag">Meraki MV</span>
+                    <span class="tech-tag">FastAPI</span>
+                    <span class="tech-tag">HTMX</span>
+                    <span class="tech-tag">GitHub Models</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
