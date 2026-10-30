@@ -15,29 +15,47 @@ changes that matter for a live demo:
 
 | Process | Address | Start |
 |---|---|---|
-| vLLM (Qwen3-VL-235B) | `127.0.0.1:8000/v1` | `~/vlm/run-235b.sh` |
-| danger_zone API + dashboard | `0.0.0.0:8001` | `. .venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port 8001` |
+| vLLM (Qwen3-VL-235B) | `127.0.0.1:8000/v1` | `~/vlm/run-235b.sh` (container restarts automatically) |
+| danger_zone API + dashboard | `0.0.0.0:8001` | `systemctl start danger-zone` (enabled at boot) |
 | Ingest tasks | in-process | started by the app lifespan when `INGEST_ENABLED=true` |
 | Storage | `/models` | 1 TB volume |
 
-`~/vlm/README.md` covers the model server in detail.
-
-## First run
+`~/vlm/README.md` covers the model server in detail. The app is a systemd
+unit (`/etc/systemd/system/danger-zone.service`) so it survives reboots and
+restarts on failure:
 
 ```bash
-cd ~/danger_zone
-. .venv/bin/activate
+sudo systemctl status danger-zone
+sudo systemctl restart danger-zone
+journalctl -u danger-zone -f
+```
 
-# 1. Model server (cold start ~5-10 min)
+## First run / cold boot
+
+```bash
+# 1. Model server (cold start ~10-15 min: 238 GB of weights + torch.compile)
 ~/vlm/run-235b.sh
 sudo docker logs -f vllm-qwen3vl     # wait for "Application startup complete"
 
 # 2. App
-uvicorn app.main:app --host 0.0.0.0 --port 8001
+sudo systemctl start danger-zone
 ```
+
+On reboot both come back on their own: the vLLM container has
+`--restart unless-stopped`, and `danger-zone.service` is enabled. The app does
+not wait for vLLM at startup — it connects lazily on the first VLM call.
 
 Open <http://localhost:8001>. The demo camera appears in the camera dropdown
 as `Synthetic Workshop (DEMO-SYNTH-0001)` and the tile refreshes every 5 s.
+
+### Verified on this machine
+
+| Check | Result |
+|---|---|
+| Synthetic compliant frame | `violation=false`, confidence 0.95, ~1.9 s |
+| Synthetic no-hard-hat frame | `violation=true`, confidence 0.95, ~1.2 s |
+| Mission parse (`hard hat` + `hi-vis vest`) | both items extracted by the local 235B |
+| Live cycle | `PPE_OK` INFO + `PPE_VIOLATION` HIGH incidents with annotated 1280×720 snapshots |
 
 ## Config: choosing the video source
 
@@ -116,7 +134,8 @@ ignored, so a Meraki-only install behaves exactly as before.
    curl -s http://127.0.0.1:8000/v1/models -H 'Authorization: Bearer <vllm-api-key>'
    ```
 
-2. Flip both VLM agents to active (they default to passive):
+2. Flip both VLM agents to active (they default to passive; both are already
+   active on this box):
 
    ```bash
    curl -s -X POST localhost:8001/agents/zone_intrusion/mode \
@@ -158,8 +177,12 @@ ignored, so a Meraki-only install behaves exactly as before.
 1 TB volume, not the 30 GB root disk.
 
 At `vlm_fps: 0.2` a camera writes one JPEG every 5 s (~50 KB) ≈ 0.9 GB/day.
-That is fine for a demo, but a long-running deployment should add a pruning
-job; `SNAPSHOT_MAX_AGE_DAYS` is configured but nothing enforces it yet.
+An hourly scheduler job (`app/services/retention.py`) deletes snapshots older
+than `SNAPSHOT_MAX_AGE_DAYS` (7 on this box) and removes empty day folders.
+
+Incidents keep accumulating while the agents are active — every cooldown
+window with a person in frame produces one. Flip both agents back to
+`{"mode":"passive"}` when you are done demoing.
 
 ## Troubleshooting
 
