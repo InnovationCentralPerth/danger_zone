@@ -4,6 +4,13 @@
 default: "openai/gpt-4o-mini"
 
 models:
+  # ---- local (self-hosted vLLM) -------------------------------------------
+  - id: "qwen3-vl-235b-instruct"
+    label: "Qwen3-VL 235B A22B (local, 4×H100)"
+    vision: true
+    max_tokens: 2048
+
+  # ---- GitHub Models (hosted) ---------------------------------------------
   - id: "openai/gpt-4o-mini"
     label: "GPT-4o mini (fast, low cost)"
     vision: true

@@ -1,5 +1,22 @@
-# Camera configuration — single camera v1
+# Camera configuration.
+#
 # Polygon coordinates are normalised 0.0–1.0 (x, y) from top-left of frame.
+#
+# A camera entry does two things:
+#   1. overrides zone polygons / cooldown / PPE item for a Meraki serial, and
+#   2. optionally declares a `source:` block so the ingest layer feeds frames
+#      into the app without Meraki at all.
+#
+# Source types:
+#   synthetic — generated workshop scene, scripted violations (no camera needed)
+#   file      — loop a local mp4/mkv/mov clip in real time
+#   rtsp      — live IP camera / Meraki external RTSP (TCP :9000)
+#
+# `vlm_fps` controls how often a frame is persisted and published onto the
+# `camera.snapshot` topic (i.e. how often the VLM agents may run). Keep it low:
+# the agents enforce their own cooldown on top of this.
+#
+# Ingest only starts when INGEST_ENABLED=true.
 
 cameras:
   - serial: "XXXX-XXXX-XXXX"       # replace with your MV camera serial
@@ -29,3 +46,47 @@ cameras:
 
     # Seconds to wait before re-running VLM on the same camera after a hit.
     cooldown_seconds: 10
+
+  # ---- Demo: recorded clip, looped in real time ---------------------------
+  # Drop a clip in data/demo/ and point `uri` at it. Same code path as RTSP.
+  #
+  # - serial: "DEMO-FILE-0001"
+  #   name: "Recorded Demo Clip"
+  #   source:
+  #     type: file
+  #     uri: "data/demo/ppe_clip.mp4"
+  #     loop: true
+  #     speed: 1.0
+  #     fps: 5
+  #     width: 1280
+  #   vlm_fps: 0.2
+
+  # ---- Demo: synthetic scene (no camera, no footage) ----------------------
+  # Cycles empty -> compliant worker -> worker without a hard hat.
+  #
+  # - serial: "DEMO-SYNTH-0001"
+  #   name: "Synthetic Workshop"
+  #   source:
+  #     type: synthetic
+  #     fps: 5
+  #     width: 1280
+  #     height: 720
+  #     script:
+  #       - {duration: 6, person: false}
+  #       - {duration: 10, person: true, hard_hat: true, hi_vis: true}
+  #       - {duration: 14, person: true, hard_hat: false, hi_vis: true}
+  #       - {duration: 6, person: false}
+  #   vlm_fps: 0.2
+
+  # ---- Live Meraki external RTSP -----------------------------------------
+  # Meraki MV: Dashboard -> Camera -> Settings -> External RTSP, then use the
+  # stream URL. TCP :9000, unencrypted, one stream per camera.
+  #
+  # - serial: "XXXX-XXXX-XXXX"
+  #   name: "Workshop Live"
+  #   source:
+  #     type: rtsp
+  #     uri: "rtsp://admin:password@10.0.0.42:9000/live"
+  #     fps: 5
+  #     width: 1280
+  #   vlm_fps: 0.2

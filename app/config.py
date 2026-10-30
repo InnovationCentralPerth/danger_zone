@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # GitHub Models
     github_token: str = ""
     model_id: str = "openai/gpt-4o-mini"
+    # Optional override to point the VLM layer at a self-hosted server
+    # (vLLM / SGLang / anything OpenAI-compatible). Empty -> GitHub Models.
+    vlm_base_url: str = ""
+    # API key for the override endpoint. Empty -> falls back to GITHUB_TOKEN.
+    vlm_api_key: str = ""
 
     # App
     api_key: str = "changeme"
@@ -28,6 +33,10 @@ class Settings(BaseSettings):
     # Decoupled from DEBUG so you can run real data with verbose logging.
     # When true, app/agents/demo.py fires synthetic incidents every 15s.
     demo_agent: bool = False
+    # Start the video-ingest tasks for cameras that declare a ``source`` block
+    # in config/cameras.yaml. Off by default so existing Meraki-only installs
+    # are unaffected.
+    ingest_enabled: bool = False
 
     # Storage
     data_dir: Path = Path("data")

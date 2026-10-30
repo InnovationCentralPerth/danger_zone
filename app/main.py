@@ -75,6 +75,13 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     if settings.demo_agent:
         scheduler.register(15, fire_demo_incident)
     scheduler.register(60, heartbeat_status)
+    # Hourly snapshot retention (SNAPSHOT_MAX_AGE_DAYS).
+    from app.services.retention import prune_snapshots
+
+    async def _prune() -> None:
+        prune_snapshots()
+
+    scheduler.register(3600, _prune)
     await scheduler.start()
 
     # Restore any persistent analytics-watcher loops (off by default on first boot).
@@ -82,8 +89,16 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
 
     analytics_watcher.restore_on_startup()
 
+    # Start source-agnostic video ingest (file / rtsp / synthetic backends).
+    # Cameras without a ``source`` block are ignored, so this is a no-op on
+    # Meraki-only deployments.
+    from app.ingest.manager import ingest_manager
+
+    ingest_manager.start()
+
     yield
 
+    await ingest_manager.stop()
     scheduler.stop()
     logger.info("danger_zone stopped.")
 

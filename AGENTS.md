@@ -35,6 +35,7 @@ app/
   agents/            — One module per agent; demo.py fires synthetic events,
                        meraki_handlers.py subscribes to camera/network bus events
   integrations/      — meraki.py (real, milestone 2), vlm.py (stub until M3)
+  ingest/            — source-agnostic video ingest (file / rtsp / synthetic)
   services/          — config_loader.py reads config/*.yaml
   models/db.py       — SQLModel tables: Incident, AgentTrace, Device, Setting
   runtime/
@@ -55,7 +56,8 @@ config/
 | `heartbeat` | heartbeat agent | dashboard SSE |
 | `agent.trace` | `AgentRun` ctx manager | dashboard SSE, DB writer |
 | `camera.motion` | meraki webhook | (logged; snapshot pipeline handles intrusion) |
-| `camera.snapshot` | `/cameras/{serial}/snapshot` + motion handler + analytics watcher | zone_intrusion agent, ppe_compliance agent |
+| `camera.frame` | ingest manager (one per decoded frame) | (metadata only; future detector service) |
+| `camera.snapshot` | `/cameras/{serial}/snapshot` + motion handler + analytics watcher + ingest | zone_intrusion agent, ppe_compliance agent |
 | `network.client` | meraki webhook | rogue_device agent |
 | `agent.invoke.*` | POST /agents/{name}/invoke | named agent |
 | `analytics_watcher.tick` | analytics watcher loop | dashboard SSE (status dot) |
@@ -138,6 +140,15 @@ config/
 - Lifespan: `analytics_watcher.restore_on_startup()` re-spawns loops for serials persisted as enabled (interval/clock reset).
 - Dashboard pill in the camera tile header — coloured dot + interval input + Start/Stop button. Green pulse on `person`, steady blue on `quiet`, grey on `idle`/`off`, red on `error`, yellow on `auto-shutoff`.
 
+## Video ingest (source-agnostic)
+- `app/ingest/` decouples the app from Meraki. Every backend implements one `FrameSource` protocol (`stream() -> AsyncIterator[Frame]`, `aclose()`), and everything downstream only sees bus events. Swapping a recorded clip for a live Meraki RTSP stream is a config edit, not a code change.
+- Backends: `synthetic` (Pillow-generated scripted workshop scene — no camera or footage needed), `file` (any ffmpeg-readable clip, looped in real time), `rtsp` (Meraki external RTSP or any IP camera, TCP + reconnect/backoff).
+- `app/ingest/ffmpeg_source.py` runs one ffmpeg subprocess per camera (`-f image2pipe -vcodec mjpeg`), splits the concatenated JPEG stream with `JpegStreamParser`, and reads dimensions from the JPEG header. `file`/`rtsp` differ only in input args (`-readrate`, `-stream_loop`, `-rtsp_transport tcp`).
+- `app/ingest/manager.py` starts one task per camera that declares a `source:` block in `config/cameras.yaml`. Per frame it pushes into a bounded drop-oldest `FrameRing` and publishes `camera.frame`; at `vlm_fps` it also persists a JPEG and publishes `camera.snapshot` (the topic the VLM agents already consume). Rate-limiting snapshots is deliberate — a slow VLM must never stall ingest.
+- Cameras without a `source:` block are ignored, so Meraki-only installs are unchanged. Ingest is off unless `INGEST_ENABLED=true`.
+- `GET /cameras/ingest` reports running sources, buffer depth and last sequence. `POST /cameras/{serial}/snapshot` returns the newest buffered frame for ingest-backed cameras instead of calling Meraki.
+- Demo config: a synthetic camera lives in the (gitignored) `config/cameras.yaml`. The default script cycles empty → compliant worker → worker without a hard hat, so a PPE demo always lands on cue.
+
 ## Webhook setup (Meraki → app)
 - Endpoint: `POST /webhooks/meraki`
 - Signature verification: HMAC-SHA256; set `MERAKI_WEBHOOK_SECRET` to the Meraki shared secret
@@ -150,6 +161,8 @@ config/
 - `GITHUB_TOKEN`, `MODEL_ID` (default: `openai/gpt-4o-mini`)
   - Get a token via the device flow helper: `python scripts/gh_device_login.py` — runs the standard GitHub OAuth 2.0 device flow, prints a user code, polls for the access token, and writes it into `.env`. Default client_id is the public gh CLI one; override with `--client-id` or `GITHUB_OAUTH_CLIENT_ID` env var. Restart the server afterwards.
 - `API_KEY` (for external agent auth)
+- `INGEST_ENABLED` — start ingest tasks for cameras with a `source:` block (default `false`)
+- `VLM_BASE_URL` / `VLM_API_KEY` — point the VLM layer at a self-hosted OpenAI-compatible server (e.g. `http://127.0.0.1:8000/v1`); empty `VLM_BASE_URL` keeps GitHub Models
 - `DEBUG=true` enables verbose logging / FastAPI debug
 - `DEMO_AGENT=true` runs the synthetic demo agent (fires fake incidents every 15s). Decoupled from `DEBUG` so you can run verbose logs against the real camera without synthetic noise.
 

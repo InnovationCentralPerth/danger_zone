@@ -37,21 +37,37 @@ async def list_meraki_cameras() -> list[dict]:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
 
+@router.get("/ingest", summary="Status of source-agnostic ingest streams")
+async def ingest_status() -> list[dict]:
+    """Report which ingest backends are running and their buffer state."""
+    from app.ingest.manager import ingest_manager
+
+    return ingest_manager.status()
+
+
 @router.post("/{serial}/snapshot", summary="Force a fresh snapshot from a camera")
 async def trigger_snapshot(serial: str, analyse: bool = True) -> dict[str, str]:
     """Generate, fetch, and persist a new snapshot from the camera.
 
-    When ``analyse=true`` (default) the snapshot is published to the bus so
-    subscribed agents (zone_intrusion, ppe_compliance) can react to it.
+    Ingest-backed cameras (file/RTSP/synthetic) return the newest buffered
+    frame instead of calling the Meraki snapshot API. When ``analyse=true``
+    (default) the snapshot is published to the bus so subscribed agents
+    (zone_intrusion, ppe_compliance) can react to it.
     """
+    import asyncio
     from datetime import datetime
 
+    from app.ingest.manager import ingest_manager
     from app.runtime.bus import bus
 
-    try:
-        path = await fetch_and_persist_snapshot(serial)
-    except MerakiError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    path = None
+    if ingest_manager.latest_frame(serial) is not None:
+        path = await asyncio.to_thread(ingest_manager.capture_latest, serial)
+    if path is None:
+        try:
+            path = await fetch_and_persist_snapshot(serial)
+        except MerakiError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
 
     if analyse:
         await bus.publish(

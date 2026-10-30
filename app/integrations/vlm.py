@@ -40,13 +40,25 @@ class VLMResult:
     completion_tokens: int | None = None
 
 
-class GitHubModelsProvider:
-    """OpenAI-compatible client pointed at GitHub Models."""
+class OpenAICompatibleProvider:
+    """OpenAI-compatible client — GitHub Models by default, or a local server.
 
-    def __init__(self, token: str, default_model: str) -> None:
+    Pass ``base_url`` to target a self-hosted vLLM/SGLang/ollama endpoint; the
+    request/response shape is identical, so no other code changes.
+    """
+
+    def __init__(
+        self,
+        token: str,
+        default_model: str,
+        base_url: str = GITHUB_MODELS_BASE_URL,
+    ) -> None:
         if not token:
-            raise VLMError("GITHUB_TOKEN is empty — set it in .env")
-        self._client = AsyncOpenAI(api_key=token, base_url=GITHUB_MODELS_BASE_URL)
+            raise VLMError(
+                "No VLM API key configured — set GITHUB_TOKEN, or VLM_API_KEY "
+                "when pointing VLM_BASE_URL at a local server"
+            )
+        self._client = AsyncOpenAI(api_key=token, base_url=base_url)
         self._default_model = default_model
 
     async def analyse_image(
@@ -231,17 +243,21 @@ def default_model_id() -> str:
 
 # ---- singleton -------------------------------------------------------------
 
-_provider: GitHubModelsProvider | None = None
+# Backwards-compatible alias — the class is generic now.
+GitHubModelsProvider = OpenAICompatibleProvider
+
+_provider: OpenAICompatibleProvider | None = None
 _active_model_id: str | None = None
 
 
-def get_provider() -> GitHubModelsProvider:
+def get_provider() -> OpenAICompatibleProvider:
     global _provider
     if _provider is None:
         settings = get_settings()
-        _provider = GitHubModelsProvider(
-            token=settings.github_token,
+        _provider = OpenAICompatibleProvider(
+            token=settings.vlm_api_key or settings.github_token,
             default_model=default_model_id(),
+            base_url=settings.vlm_base_url or GITHUB_MODELS_BASE_URL,
         )
     return _provider
 
