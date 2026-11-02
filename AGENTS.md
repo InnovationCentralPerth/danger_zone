@@ -72,11 +72,21 @@ config/
 - Active model switchable at runtime via `POST /models/active` or the dashboard dropdown
 
 ## External Agent API
-- OpenAPI at `/docs`; all routes are auth-guarded via `X-API-Key` header
+- OpenAPI at `/docs`. **The REST API currently has no auth dependency** — `API_KEY` is only enforced by the MCP bridge below, so anyone who can reach port 8001 can call it. Keep it on localhost or a trusted tailnet/ACL.
+- Historical intent was `X-API-Key` on every route; do not assume it is active.
 - Key groups: `incidents`, `agents`, `cameras`, `network`, `models`, `ops`, `mission-context`
 - `GET /incidents/{id}/snapshot` returns the JPEG attached to an incident (404 if no snapshot or file missing); dashboard renders this as a 120×80 thumbnail per card.
 - `POST /agents/{name}/invoke` to trigger any named agent on demand
 - `GET/POST/DELETE /agents/context` — read, set, or clear the active mission context (PPE requirements in plain English). POST body: `{"mission": "..."}`. Triggers one cheap LLM call to extract structured items; subsequent snapshots reuse the persisted context with no extra parse cost.
+
+## MCP bridge (OpenCode / external clients)
+- `app/mcp_server.py` wraps the REST API as a Streamable-HTTP MCP server so OpenCode and other MCP clients can use the agents as tools. It is a thin `httpx` client of `DZ_API_URL` — never re-implements agent logic.
+- 15 tools: `list_incidents`, `get_incident`, `get_incident_snapshot_url`, `get_agent_traces`, `get_agent_modes`, `set_agent_mode`, `invoke_agent`, `get_mission`, `set_mission`, `clear_mission`, `list_cameras`, `get_ingest_status`, `get_zones`, `capture_snapshot`, `get_latest_snapshot_url`.
+- Run with `python -m app.mcp_server` after `uv sync --extra mcp` (optional dependency group; the app itself does not import it). Deployed as `danger-zone-mcp.service` on `127.0.0.1:8010`, exposed tailnet-only via `sudo tailscale serve --bg 8010` → `https://xenterm-wl180.tailc0c1b.ts.net/mcp`.
+- Auth is a pure-ASGI `ApiKeyMiddleware` checking `X-API-Key` (or `Authorization: Bearer`) against `DZ_API_KEY`, falling back to `API_KEY` from settings. This is the only place `API_KEY` is currently enforced.
+- Env: `DZ_API_URL`, `DZ_API_KEY`, `DZ_PUBLIC_URL` (snapshot links), `DZ_MCP_HOST`, `DZ_MCP_PORT`.
+- mcp 2.x API: `from mcp.server.mcpserver import MCPServer` (FastMCP was renamed); client tests use `httpx2.AsyncClient` + `mcp.client.streamable_http.streamable_http_client`.
+- OpenCode remote MCP defaults to OAuth; a header-authenticated server needs `"oauth": false` in `mcp.servers.<name>`. `{env:VAR}` is not expanded in MCP headers, so the key is literal in the client config.
 
 ## Agent active/passive mode
 - VLM-backed agents (`zone_intrusion`, `ppe_compliance`) honour a per-agent mode flag persisted in the `Setting` table

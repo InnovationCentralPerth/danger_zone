@@ -17,6 +17,7 @@ changes that matter for a live demo:
 |---|---|---|
 | vLLM (Qwen3-VL-235B) | `127.0.0.1:8000/v1` | `~/vlm/run-235b.sh` (container restarts automatically) |
 | danger_zone API + dashboard | `0.0.0.0:8001` | `systemctl start danger-zone` (enabled at boot) |
+| MCP bridge (OpenCode) | `127.0.0.1:8010/mcp`, proxied by `tailscale serve` | `systemctl start danger-zone-mcp` (enabled at boot) |
 | Ingest tasks | in-process | started by the app lifespan when `INGEST_ENABLED=true` |
 | Storage | `/models` | 1 TB volume |
 
@@ -25,9 +26,17 @@ unit (`/etc/systemd/system/danger-zone.service`) so it survives reboots and
 restarts on failure:
 
 ```bash
-sudo systemctl status danger-zone
+sudo systemctl status danger-zone danger-zone-mcp
 sudo systemctl restart danger-zone
 journalctl -u danger-zone -f
+```
+
+The checked-in unit files live in `deploy/`. To install them on a fresh box:
+
+```bash
+sudo cp deploy/danger-zone.service deploy/danger-zone-mcp.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now danger-zone danger-zone-mcp
 ```
 
 ## First run / cold boot
@@ -37,13 +46,15 @@ journalctl -u danger-zone -f
 ~/vlm/run-235b.sh
 sudo docker logs -f vllm-qwen3vl     # wait for "Application startup complete"
 
-# 2. App
-sudo systemctl start danger-zone
+# 2. App + MCP bridge (the bridge Requires=danger-zone)
+sudo systemctl start danger-zone danger-zone-mcp
 ```
 
-On reboot both come back on their own: the vLLM container has
-`--restart unless-stopped`, and `danger-zone.service` is enabled. The app does
-not wait for vLLM at startup — it connects lazily on the first VLM call.
+On reboot everything comes back on its own: the vLLM container has
+`--restart unless-stopped`, and `danger-zone.service` / `danger-zone-mcp.service`
+are enabled. The app does not wait for vLLM at startup — it connects lazily on
+the first VLM call. The MCP bridge is optional for the demo; install its extra
+once with `uv sync --extra dev --extra mcp` (a plain `uv sync` removes it).
 
 Open <http://localhost:8001>. The demo camera appears in the camera dropdown
 as `Synthetic Workshop (DEMO-SYNTH-0001)` and the tile refreshes every 5 s.
@@ -170,6 +181,89 @@ ignored, so a Meraki-only install behaves exactly as before.
 | `POST /cameras/{serial}/snapshot` | newest buffered frame for ingest cameras (falls back to Meraki otherwise) |
 | `GET /cameras/{serial}/snapshot/latest` | newest JPEG on disk (dashboard tile) |
 | `GET /cameras/{serial}/zones` | polygons for the dashboard overlay |
+
+## Connect OpenCode from your laptop
+
+OpenCode speaks MCP, not the app's REST API, so this box runs a small bridge
+(`app/mcp_server.py`) that exposes the agents as MCP tools. It is a thin HTTP
+client of the local API — no second implementation, no extra state.
+
+| Piece | Value |
+|---|---|
+| MCP endpoint | `https://xenterm-wl180.tailc0c1b.ts.net/mcp` (Streamable HTTP) |
+| Local bind | `127.0.0.1:8010` — only reachable through `tailscale serve` |
+| Auth | `X-API-Key: <API_KEY from .env>` |
+| Service | `danger-zone-mcp.service` (enabled at boot, requires `danger-zone`) |
+
+Tools: incidents (`list_incidents`, `get_incident`, snapshot links), agents
+(`get_agent_modes`, `set_agent_mode`, `invoke_agent`, `get_agent_traces`),
+mission context (`get_mission`, `set_mission`, `clear_mission`), cameras/ingest
+(`list_cameras`, `get_ingest_status`, `get_zones`, `capture_snapshot`).
+
+### On the laptop (same tailnet)
+
+1. Read the key on this box, then export it on the laptop:
+
+```bash
+# server
+grep '^API_KEY=' ~/danger_zone/.env
+# laptop
+export DZ_API_KEY=<paste>
+```
+
+2. Add the server to the global config:
+
+```bash
+opencode mcp add danger-zone --global \
+  --url https://xenterm-wl180.tailc0c1b.ts.net/mcp \
+  --header "X-API-Key=$DZ_API_KEY"
+```
+
+3. OpenCode defaults remote servers to OAuth. Add `"oauth": false` next to the
+   URL in the global config the command reported (usually
+   `~/.config/opencode/opencode.json`); the CLI does not set it:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "danger-zone": {
+        "type": "remote",
+        "url": "https://xenterm-wl180.tailc0c1b.ts.net/mcp",
+        "oauth": false,
+        "headers": { "X-API-Key": "<paste the key>" }
+      }
+    }
+  }
+}
+```
+
+   `{env:DZ_API_KEY}` is **not** expanded inside MCP headers (verified with
+   OpenCode 2.1.3), so the key has to be literal. `chmod 600` the file.
+
+4. Verify:
+
+```bash
+opencode mcp list          # → ✓ danger-zone  connected
+```
+
+Then ask things like:
+
+- "List the last five incidents and tell me which camera fired most."
+- "Set the mission to: this is an electronics lab, workers need safety glasses and anti-static wrist straps."
+- "Turn the PPE agent passive, capture a snapshot from DEMO-SYNTH-0001, then turn it active again."
+
+### Notes
+
+- `tailscale serve` must stay configured; `tailscale serve status` should show
+  `/ → http://127.0.0.1:8010`. Re-create with `sudo tailscale serve --bg 8010`.
+  This is Serve (tailnet only), not Funnel.
+- The app's REST API on `http://100.107.106.43:8001` is **not** API-key
+  protected (the dashboard calls it without headers). Anyone on the tailnet can
+  reach it — use Tailscale ACLs if that matters. The dashboard lives there too.
+- Snapshot links returned by MCP tools point at `http://100.107.106.43:8001`.
+  Override with `DZ_PUBLIC_URL` in `danger-zone-mcp.service` if you front the
+  app with `tailscale serve` as well.
 
 ## Storage and retention
 

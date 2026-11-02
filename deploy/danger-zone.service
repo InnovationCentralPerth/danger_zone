@@ -1,0 +1,19 @@
+[Unit]
+Description=danger_zone — agentic camera safety demonstrator
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=marrabld
+Group=marrabld
+WorkingDirectory=/home/marrabld/danger_zone
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/marrabld/danger_zone/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

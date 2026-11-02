@@ -1,0 +1,25 @@
+[Unit]
+Description=danger_zone MCP bridge (Streamable HTTP for OpenCode)
+After=network-online.target danger-zone.service tailscaled.service
+Wants=network-online.target
+Requires=danger-zone.service
+
+[Service]
+Type=simple
+User=marrabld
+Group=marrabld
+WorkingDirectory=/home/marrabld/danger_zone
+Environment=PYTHONUNBUFFERED=1
+Environment=DZ_API_URL=http://127.0.0.1:8001
+# Set to this box's tailnet address so snapshot links work from other devices.
+Environment=DZ_PUBLIC_URL=http://100.107.106.43:8001
+Environment=DZ_MCP_HOST=127.0.0.1
+Environment=DZ_MCP_PORT=8010
+ExecStart=/home/marrabld/danger_zone/.venv/bin/python -m app.mcp_server
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

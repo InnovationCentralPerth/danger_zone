@@ -33,6 +33,10 @@ dev = [
     "types-pyyaml",
     "types-aiofiles",
 ]
+# MCP bridge that exposes the agent API to OpenCode / other MCP clients.
+mcp = [
+    "mcp>=1.9",
+]
 
 [tool.ruff]
 line-length = 100
