@@ -1,12 +1,13 @@
-# VLM model catalogue — served via GitHub Models (OpenAI-compatible API)
+# VLM model catalogue — served via an OpenAI-compatible API
+# (local vLLM, GitHub Models, or any compatible endpoint).
 # Only models with vision: true can process camera snapshots.
 
 default: "openai/gpt-4o-mini"
 
 models:
   # ---- local (self-hosted vLLM) -------------------------------------------
-  - id: "qwen3-vl-235b-instruct"
-    label: "Qwen3-VL 235B A22B (local, 4×H100)"
+  - id: "qwen3-vl-235b-awq"
+    label: "Qwen3-VL 235B A22B AWQ (local, 2×H100)"
     vision: true
     max_tokens: 2048
 

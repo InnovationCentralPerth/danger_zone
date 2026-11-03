@@ -1,4 +1,4 @@
-# Deployment — danger_zone on 4×H100
+# Deployment — danger_zone on 2×H100
 
 This box runs a production-shaped deployment of the `danger_zone` PoC with two
 changes that matter for a live demo:
@@ -7,15 +7,17 @@ changes that matter for a live demo:
    camera entry declares a `source:` block (`synthetic`, `file`, `rtsp`), and
    everything downstream — agents, dashboard, incidents — only sees
    `camera.frame` / `camera.snapshot` bus events.
-2. **The VLM is local.** Qwen3-VL-235B-A22B-Instruct-FP8 is served by vLLM on
-   all four GPUs, so there are no hosted-API tokens, rate limits, or network
-   dependency in the demo path.
+2. **The VLM is local.** Qwen3-VL-235B-A22B-Instruct-AWQ (4-bit) is served by
+   vLLM across the two H100s, so there are no hosted-API tokens, rate limits,
+   or network dependency in the demo path. The AWQ checkpoint is used because
+   the 238 GB FP8 version no longer fits the 192 GB box; the FP8 weights are
+   still on disk for a future 4-card machine (`~/vlm/run-235b.sh`).
 
 ## What runs where
 
 | Process | Address | Start |
 |---|---|---|
-| vLLM (Qwen3-VL-235B) | `127.0.0.1:8000/v1` | `~/vlm/run-235b.sh` (container restarts automatically) |
+| vLLM (Qwen3-VL-235B AWQ, TP2) | `127.0.0.1:8000/v1` | `~/vlm/run-235b-awq.sh` (container restarts automatically) |
 | danger_zone API + dashboard | `0.0.0.0:8001` | `systemctl start danger-zone` (enabled at boot) |
 | MCP bridge (OpenCode) | `127.0.0.1:8010/mcp`, proxied by `tailscale serve` | `systemctl start danger-zone-mcp` (enabled at boot) |
 | Ingest tasks | in-process | started by the app lifespan when `INGEST_ENABLED=true` |
@@ -42,8 +44,8 @@ sudo systemctl enable --now danger-zone danger-zone-mcp
 ## First run / cold boot
 
 ```bash
-# 1. Model server (cold start ~10-15 min: 238 GB of weights + torch.compile)
-~/vlm/run-235b.sh
+# 1. Model server (cold start ~3-6 min: 125 GB of AWQ weights + torch.compile)
+~/vlm/run-235b-awq.sh
 sudo docker logs -f vllm-qwen3vl     # wait for "Application startup complete"
 
 # 2. App + MCP bridge (the bridge Requires=danger-zone)
@@ -63,8 +65,8 @@ as `Synthetic Workshop (DEMO-SYNTH-0001)` and the tile refreshes every 5 s.
 
 | Check | Result |
 |---|---|
-| Synthetic compliant frame | `violation=false`, confidence 0.95, ~1.9 s |
-| Synthetic no-hard-hat frame | `violation=true`, confidence 0.95, ~1.2 s |
+| Synthetic compliant frame | `violation=false`, confidence 0.95, ~1.7 s |
+| Synthetic no-hard-hat frame | `violation=true`, confidence 0.95, ~1.0 s |
 | Mission parse (`hard hat` + `hi-vis vest`) | both items extracted by the local 235B |
 | Live cycle | `PPE_OK` INFO + `PPE_VIOLATION` HIGH incidents with annotated 1280×720 snapshots |
 
@@ -288,3 +290,5 @@ window with a person in frame produces one. Flip both agents back to
 | Agents never fire | both agents default to passive; flip via the API or dashboard pills |
 | ffmpeg missing | `sudo apt install ffmpeg` (needed for `file`/`rtsp`, not `synthetic`) |
 | Root disk filling | ensure `DATA_DIR` points at `/models`, and Docker/containerd roots are on the volume |
+| `/models` empty after a VM resize | reattach the 1 TB volume, `systemctl stop docker containerd`, `mount /models`, then start Docker — starting Docker first makes it use a root-disk `/models/docker` |
+| vLLM OOM after losing GPUs | use the AWQ launcher (`run-235b-awq.sh`, TP2); lower `--gpu-memory-utilization` to 0.85 or `--max-model-len` to 65536 |
