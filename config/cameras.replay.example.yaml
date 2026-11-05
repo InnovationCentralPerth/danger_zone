@@ -7,7 +7,8 @@
 # recorded. Change the mission live to prove the analysis is not canned.
 #
 # Record/export one clip per camera, 8–15 minutes each, and drop them in
-# data/demo/. See docs/EXPO_RUNBOOK.md for the cue sheet and recording guide.
+# /models/danger_zone/data/demo/ (the 1 TB volume). Absolute paths below avoid
+# filling the 30 GB root disk. See docs/EXPO_RUNBOOK.md for the cue sheet.
 #
 # Ingest only starts when INGEST_ENABLED=true.
 # Files are looped in real time at `speed: 1.0`.
@@ -21,7 +22,7 @@ cameras:
     demo_label: "REPLAY"
     source:
       type: file
-      uri: "data/demo/workshop.mp4"
+      uri: "/models/danger_zone/data/demo/workshop.mp4"
       loop: true
       speed: 1.0
       fps: 5
@@ -43,7 +44,7 @@ cameras:
     demo_label: "REPLAY"
     source:
       type: file
-      uri: "data/demo/demo-area.mp4"
+      uri: "/models/danger_zone/data/demo/demo-area.mp4"
       loop: true
       speed: 1.0
       fps: 5
@@ -65,7 +66,7 @@ cameras:
     demo_label: "REPLAY"
     source:
       type: file
-      uri: "data/demo/coffee.mp4"
+      uri: "/models/danger_zone/data/demo/coffee.mp4"
       loop: true
       speed: 1.0
       fps: 5

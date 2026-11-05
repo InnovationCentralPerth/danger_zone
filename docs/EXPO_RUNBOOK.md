@@ -35,7 +35,9 @@ the stretch goal, not the critical path.
 
 This is the reliable main stage. The footage is recorded, the analysis is live.
 
-1. Record or export one clip per camera into `data/demo/` (see the cue sheet).
+1. Record or export one clip per camera into
+   `/models/danger_zone/data/demo/` (the 1 TB volume — not the repo's 30 GB
+   root disk). See the cue sheet.
 2. The profile is already created locally as `config/cameras.replay.yaml`
    (gitignored). If it is missing, copy the template:
    ```bash
@@ -89,7 +91,7 @@ Normalise an exported clip to a predictable H.264 MP4:
 ```bash
 ffmpeg -i raw.mov -vf "scale=1280:-2,fps=25" \
   -c:v libx264 -pix_fmt yuv420p -movflags +faststart \
-  data/demo/workshop.mp4
+  /models/danger_zone/data/demo/workshop.mp4
 ```
 
 Check all three clips with:
