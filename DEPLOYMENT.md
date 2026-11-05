@@ -58,8 +58,9 @@ are enabled. The app does not wait for vLLM at startup — it connects lazily on
 the first VLM call. The MCP bridge is optional for the demo; install its extra
 once with `uv sync --extra dev --extra mcp` (a plain `uv sync` removes it).
 
-Open <http://localhost:8001>. The demo camera appears in the camera dropdown
-as `Synthetic Workshop (DEMO-SYNTH-0001)` and the tile refreshes every 5 s.
+Open <http://localhost:8001>. The camera dropdown lists the Meraki cameras
+discovered from the org (e.g. `MRWA MV12W ICP WORKSHOP`) and the tile shows the
+latest real snapshot.
 
 ### Verified on this machine
 
@@ -69,14 +70,26 @@ as `Synthetic Workshop (DEMO-SYNTH-0001)` and the tile refreshes every 5 s.
 | Synthetic no-hard-hat frame | `violation=true`, confidence 0.95, ~1.0 s |
 | Mission parse (`hard hat` + `hi-vis vest`) | both items extracted by the local 235B |
 | Live cycle | `PPE_OK` INFO + `PPE_VIOLATION` HIGH incidents with annotated 1280×720 snapshots |
+| Real Meraki snapshot (`Q2GV-XPS8-82TX`) | 1920×1080 JPEG, ~14 s cold; empty frame → both agents silent/cleared |
 
 ## Config: choosing the video source
 
-Everything is driven by `config/cameras.yaml` (gitignored; local copy already
-has the synthetic demo camera). Switch sources by editing the `source:` block —
-no code changes.
+Everything is driven by `config/cameras.yaml` (gitignored). There are two
+independent paths:
 
-### Synthetic (default — no camera, no footage)
+- **Meraki cloud snapshots** — omit the `source:` block. Cameras are discovered
+  live from Meraki and the app uses the cloud snapshot + analytics APIs. This
+  works from a cloud VM with no route to the camera LAN, and is what the current
+  deployment uses.
+- **Local video ingest** — add a `source:` block (`synthetic`, `file`, or
+  `rtsp`). This is the source-agnostic path and needs a network route for RTSP.
+
+Switch paths by editing the `source:` block — no code changes.
+
+### Synthetic (fallback — no camera, no footage)
+
+The previous local config is saved at `/home/marrabld/cameras.synthetic.yaml`;
+copy it back to `config/cameras.yaml` to run without cameras.
 
 ```yaml
 cameras:
@@ -113,6 +126,23 @@ PPE agent always has a violation to find on cue.
 Drop the clip in `/models/danger_zone/data/demo/` and use an absolute path, or
 a path relative to the repo root.
 
+### Meraki cloud snapshots (no RTSP route needed)
+
+Omit the `source:` block entirely. The app discovers MV cameras via the Meraki
+API and uses:
+
+- `POST /cameras/{serial}/snapshot` — real 1920×1080 JPEG. The signed URL 307s
+  to a regional streaming host (`streaming.apac.meraki.com`), then returns 400
+  until the camera uploads; cold fetch is ~10–15 s. The client follows redirects
+  and polls for up to 25 s.
+- `POST /cameras/{serial}/analytics-watcher` — polls on-device analytics and
+  captures only when a person is present, so VLM calls happen on interesting
+  frames. Auto-shuts off after 30 minutes; re-enable from the dashboard pill.
+
+The three ICP cameras (`Q2GV-MGCS-QRM5`, `Q2GV-52D5-YTLK`, `Q2GV-XPS8-82TX`)
+are configured this way. `MERAKI_ALLOW_WRITE_KEY=true` is only needed because
+the current key has `orgAccess='full'`; a read-only key is recommended.
+
 ### Live camera (Meraki external RTSP)
 
 ```yaml
@@ -126,6 +156,11 @@ a path relative to the repo root.
 Meraki: Dashboard → Camera → Settings → External RTSP. TCP port 9000,
 unencrypted, one stream per camera, LAN access required.
 
+Meraki RTSP is LAN-only. A cloud VM needs a route to the camera subnet — e.g. a
+Tailscale subnet router on-site advertising `192.168.6.0/24`, approved in the
+admin console. Test with `ffprobe -rtsp_transport tcp ...` before enabling the
+`source:` block; the current VM cannot reach `192.168.6.x` directly.
+
 ### Keys that control ingest
 
 | Key | Meaning |
@@ -137,7 +172,8 @@ unencrypted, one stream per camera, LAN access required.
 | `cooldown_seconds` | per-agent cooldown on top of `vlm_fps` |
 
 `INGEST_ENABLED=true` is set in `.env`. Cameras without a `source:` block are
-ignored, so a Meraki-only install behaves exactly as before.
+ignored by the ingest manager; they are still discovered from Meraki and use the
+snapshot/analytics path above, so a Meraki-only install works without RTSP.
 
 ## Demo runbook
 
