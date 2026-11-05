@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
@@ -16,10 +17,28 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/dashboard/templates")
 logger = logging.getLogger(__name__)
 
+_ASSET_FILES = (Path("static/js/main.js"), Path("static/css/main.css"))
+
+
+def _asset_version() -> str:
+    """Cache-bust dashboard assets when the JS/CSS changes.
+
+    The expo runs on a long-lived browser tab; a stale cached main.js would hide
+    the source badges and mission presets after a deploy. Use the newest mtime.
+    """
+    try:
+        return str(int(max(p.stat().st_mtime for p in _ASSET_FILES)))
+    except OSError:
+        return "1"
+
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"asset_version": _asset_version()},
+    )
 
 
 @router.get("/events", include_in_schema=False)
