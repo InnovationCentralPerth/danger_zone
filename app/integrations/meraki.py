@@ -135,13 +135,15 @@ class MerakiClient:
     ) -> bytes:
         """Generate a snapshot URL and poll it until the image is ready.
 
-        Meraki signed snapshot URLs return errors until the camera has
-        captured + uploaded the frame (typically 3-8 s, sometimes longer on
-        older MV models). The "not ready" status varies by camera firmware:
-        newer MVs return 404, older ones (MV12, MV21, MV71) return 400 with
-        a generic HTML error page. We treat 400/403/404 as transient during
-        the polling window and only raise on persistent failure past the
-        timeout, or on other status codes (5xx, 401, etc).
+        Meraki signed snapshot URLs redirect to a regional streaming host
+        (e.g. ``streaming.apac.meraki.com``), so redirects must be followed.
+        They then return errors until the camera has captured + uploaded the
+        frame (typically 3-8 s, sometimes longer on older MV models). The
+        "not ready" status varies by camera firmware: newer MVs return 404,
+        older ones (MV12, MV21, MV71) return 400 with a generic HTML error
+        page. We treat 400/403/404 as transient during the polling window and
+        only raise on persistent failure past the timeout, or on other status
+        codes (5xx, 401, etc).
         """
         url = await self.generate_camera_snapshot_url(serial)
         logger.debug("Meraki snapshot URL for %s: %s", serial, url)
@@ -154,7 +156,7 @@ class MerakiClient:
         last_status: int | None = None
         last_body_preview: str = ""
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
             while asyncio.get_event_loop().time() < deadline:
                 resp = await client.get(url)
                 if resp.status_code == 200:
