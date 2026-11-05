@@ -46,3 +46,6 @@ async def test_dashboard_renders_zone_overlay_markup():
     assert 'id="zone-overlay"' in body
     assert 'id="zone-legend"' in body
     assert 'id="camera-image-wrap"' in body
+    assert 'id="camera-mode"' in body
+    assert 'id="camera-mode-overlay"' in body
+    assert "mission-preset" in body

@@ -3,6 +3,8 @@
 const evtSource = new EventSource("/events");
 let incidentCount = 0;
 let cameraSerial = null;
+// serial -> {label, sourceType, demoLabel, vlmFps}; populated from /cameras/.
+const cameraMeta = new Map();
 
 const severityBadge = {
   HIGH:     'danger',
@@ -96,10 +98,28 @@ async function loadConfiguredCamera() {
   // name + location), then any Meraki-only serials with their device name.
   const yamlBySerial = new Map(yamlCams.map((c) => [c.serial, c]));
   const merged = [];
-  for (const c of yamlCams) merged.push({ serial: c.serial, label: c.name || c.serial });
+  for (const c of yamlCams) {
+    const meta = {
+      serial: c.serial,
+      label: c.name || c.serial,
+      sourceType: c.source_type || null,
+      demoLabel: c.demo_label || null,
+      vlmFps: c.vlm_fps ?? null,
+    };
+    cameraMeta.set(c.serial, meta);
+    merged.push(meta);
+  }
   for (const d of merakiCams) {
     if (yamlBySerial.has(d.serial)) continue;
-    merged.push({ serial: d.serial, label: d.name || d.serial });
+    const meta = {
+      serial: d.serial,
+      label: d.name || d.serial,
+      sourceType: null,
+      demoLabel: null,
+      vlmFps: null,
+    };
+    cameraMeta.set(d.serial, meta);
+    merged.push(meta);
   }
 
   const select = document.getElementById('camera-select');
@@ -127,16 +147,49 @@ async function loadConfiguredCamera() {
   selectCamera(initial);
 }
 
+function cameraModeFor(meta) {
+  if (!meta) return 'LIVE (CLOUD)';
+  if (meta.demoLabel) return String(meta.demoLabel).toUpperCase();
+  const t = String(meta.sourceType || '').toLowerCase();
+  if (t === 'file') return 'REPLAY';
+  if (t === 'rtsp') return 'LIVE';
+  if (t === 'synthetic') return 'SYNTHETIC';
+  return 'LIVE (CLOUD)';
+}
+
+function setCameraMode(meta) {
+  const mode = cameraModeFor(meta);
+  const badge = document.getElementById('camera-mode');
+  const overlay = document.getElementById('camera-mode-overlay');
+  const cls = mode.startsWith('REPLAY')
+    ? 'bg-warning text-dark'
+    : mode === 'LIVE'
+      ? 'bg-success'
+      : mode.startsWith('SYNTHETIC')
+        ? 'bg-info text-dark'
+        : 'bg-secondary';
+  if (badge) {
+    badge.textContent = mode;
+    badge.className = `badge ${cls}`;
+  }
+  if (overlay) {
+    overlay.textContent = mode;
+    overlay.className = `camera-mode-overlay ${cls} d-none`;
+  }
+}
+
 function selectCamera(serial) {
   if (!serial) return;
   cameraSerial = serial;
   localStorage.setItem('dz.cameraSerial', serial);
   document.getElementById('camera-serial').textContent = serial;
+  setCameraMode(cameraMeta.get(serial));
   // Reset transient camera-tile state when switching.
   const img = document.getElementById('camera-image');
   const empty = document.getElementById('camera-empty');
   const overlay = document.getElementById('zone-overlay');
   const legend = document.getElementById('zone-legend');
+  delete img.dataset.streamSerial;
   img.classList.add('d-none');
   overlay.classList.add('d-none');
   legend.classList.add('d-none');
@@ -189,6 +242,40 @@ function refreshSnapshot() {
   if (!cameraSerial) return;
   const img = document.getElementById('camera-image');
   const empty = document.getElementById('camera-empty');
+  const modeOverlay = document.getElementById('camera-mode-overlay');
+  const meta = cameraMeta.get(cameraSerial) || {};
+  const isStream = !!meta.sourceType;
+
+  if (isStream) {
+    // MJPEG: only (re)connect when switching cameras. The per-second
+    // camera_snapshot SSE event must not reset the stream.
+    if (img.dataset.streamSerial === cameraSerial && img.src.includes('/stream.mjpg')) return;
+    img.dataset.streamSerial = cameraSerial;
+    img.onerror = () => {
+      img.classList.add('d-none');
+      empty.classList.remove('d-none');
+      modeOverlay?.classList.add('d-none');
+      const status = document.getElementById('camera-status');
+      status.className = 'badge bg-danger';
+      status.textContent = 'stream stalled';
+    };
+    img.onload = () => {
+      const status = document.getElementById('camera-status');
+      status.className = 'badge bg-success';
+      status.textContent = 'live';
+    };
+    img.classList.remove('d-none');
+    empty.classList.add('d-none');
+    document.getElementById('zone-overlay').classList.remove('d-none');
+    document.getElementById('zone-legend').classList.remove('d-none');
+    modeOverlay?.classList.remove('d-none');
+    img.src = `/cameras/${cameraSerial}/stream.mjpg?ts=${Date.now()}`;
+    return;
+  }
+
+  // Meraki-cloud snapshot path: poll the newest JPEG on disk.
+  img.onerror = null;
+  img.onload = null;
   const url = `/cameras/${cameraSerial}/snapshot/latest?ts=${Date.now()}`;
   // Use Image() loader (HEAD probe doesn't work with FastAPI FileResponse).
   const probe = new Image();
@@ -198,6 +285,7 @@ function refreshSnapshot() {
     empty.classList.add('d-none');
     document.getElementById('zone-overlay').classList.remove('d-none');
     document.getElementById('zone-legend').classList.remove('d-none');
+    modeOverlay?.classList.remove('d-none');
   };
   probe.onerror = () => { /* no snapshot yet — keep placeholder */ };
   probe.src = url;
@@ -240,6 +328,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('watcher-toggle').addEventListener('click', toggleWatcher);
   document.getElementById('mission-set').addEventListener('click', setMission);
   document.getElementById('mission-clear').addEventListener('click', clearMission);
+  document.querySelectorAll('.mission-preset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById('mission-input');
+      input.value = btn.dataset.mission || '';
+      setMission();
+    });
+  });
   document.getElementById('mission-input').addEventListener('keydown', (e) => {
     // Ctrl/Cmd+Enter submits — Enter alone inserts newline as usual
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {

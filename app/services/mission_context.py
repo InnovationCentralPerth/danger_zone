@@ -82,13 +82,17 @@ Respond ONLY with a single JSON object of this exact shape:
 {
   "required_items": ["<item>", ...],
   "context_note": "<one short sentence, max 80 characters>",
-  "severity_hint": "low" | "medium" | "low"
+  "severity_hint": "low" | "medium" | "high"
 }
 
 Rules:
 - Each item in required_items must be a short, lowercase, visually-identifiable
-  PPE item (e.g. "hard hat", "safety glasses", "hi-vis vest", "steel-toe boots",
-  "anti-static wrist strap", "respirator mask", "cut-resistant gloves").
+  PPE item (e.g. "hard hat", "safety goggles", "safety glasses", "hi-vis vest",
+  "steel-toe boots", "anti-static wrist strap", "respirator mask",
+  "cut-resistant gloves").
+- Preserve the user's own wording when they name a specific item. In particular,
+  "safety goggles" must stay "safety goggles" (not "safety glasses"); goggles and
+  glasses are visually distinct and the demo checks for goggles.
 - Maximum 5 items.
 - If the user describes a setting but names no specific items, infer the most
   common PPE for that setting (e.g. electronics lab -> safety glasses,

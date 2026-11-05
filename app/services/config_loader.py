@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path("config")
 
@@ -20,8 +23,37 @@ def _load_yaml(name: str) -> dict:  # type: ignore[type-arg]
         return yaml.safe_load(f) or {}
 
 
+def _camera_config_path() -> Path:
+    """Resolve the camera config, honouring ``DEMO_PROFILE``.
+
+    ``DEMO_PROFILE=replay`` loads ``config/cameras.replay.yaml`` when present.
+    This lets the expo switch between live cameras and recorded footage with an
+    env var and a restart, instead of editing the live config in front of an
+    audience. A missing profile file falls back to the normal config with a
+    warning so a typo cannot take the demo down.
+    """
+    from app.config import get_settings
+
+    profile = (get_settings().demo_profile or "").strip()
+    if profile:
+        candidate = _CONFIG_DIR / f"cameras.{profile}.yaml"
+        if candidate.exists():
+            return candidate
+        logger.warning(
+            "DEMO_PROFILE=%s requested but %s does not exist; using default camera config",
+            profile,
+            candidate,
+        )
+    real = _CONFIG_DIR / "cameras.yaml"
+    example = _CONFIG_DIR / "cameras.example.yaml"
+    return real if real.exists() else example
+
+
 def load_cameras() -> list[dict]:  # type: ignore[type-arg]
-    return _load_yaml("cameras").get("cameras", [])
+    path = _camera_config_path()
+    with open(path) as f:
+        data = yaml.safe_load(f) or {}
+    return data.get("cameras", [])
 
 
 # Full-frame polygon used when a camera has no YAML entry. Coordinates are

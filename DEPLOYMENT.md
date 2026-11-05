@@ -86,6 +86,22 @@ independent paths:
 
 Switch paths by editing the `source:` block — no code changes.
 
+You can also keep a whole alternative camera file and select it with an env
+var, which is safer than editing the live config in front of an audience:
+
+```bash
+cp config/cameras.replay.example.yaml config/cameras.replay.yaml
+# .env
+DEMO_PROFILE=replay
+```
+
+`DEMO_PROFILE=replay` loads `config/cameras.replay.yaml`; unset it to return to
+`config/cameras.yaml`. A missing profile file falls back to the default with a
+warning. See `docs/EXPO_RUNBOOK.md` for the expo recording guide and cue sheet.
+
+Cloud-hosted VLM entries are hidden from the model picker and rejected by the
+API unless `ALLOW_CLOUD_MODELS=true`. Keep it false for data-sovereign demos.
+
 ### Synthetic (fallback — no camera, no footage)
 
 The previous local config is saved at `/home/marrabld/cameras.synthetic.yaml`;
@@ -114,6 +130,7 @@ PPE agent always has a violation to find on cue.
 ### Recorded clip
 
 ```yaml
+    demo_label: "REPLAY"          # dashboard tile badge
     source:
       type: file
       uri: "data/demo/ppe_clip.mp4"
@@ -121,10 +138,14 @@ PPE agent always has a violation to find on cue.
       speed: 1.0
       fps: 5
       width: 1280
+    vlm_fps: 1.0                  # 1 VLM snapshot/sec; agents add their own cooldown
 ```
 
 Drop the clip in `/models/danger_zone/data/demo/` and use an absolute path, or
-a path relative to the repo root.
+a path relative to the repo root. The dashboard serves ingest-backed cameras as
+an MJPEG stream (`/cameras/{serial}/stream.mjpg`), so a recorded clip looks like
+video instead of a once-per-second still. The `REPLAY` badge stays visible on
+the tile and over the image.
 
 ### Meraki cloud snapshots (no RTSP route needed)
 
@@ -218,6 +239,7 @@ snapshot/analytics path above, so a Meraki-only install works without RTSP.
 | `GET /cameras/ingest` | running sources, buffer depth, last sequence |
 | `POST /cameras/{serial}/snapshot` | newest buffered frame for ingest cameras (falls back to Meraki otherwise) |
 | `GET /cameras/{serial}/snapshot/latest` | newest JPEG on disk (dashboard tile) |
+| `GET /cameras/{serial}/stream.mjpg` | MJPEG stream from the ingest frame ring (404 for Meraki-cloud-only cameras) |
 | `GET /cameras/{serial}/zones` | polygons for the dashboard overlay |
 
 ## Connect OpenCode from your laptop

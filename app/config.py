@@ -17,14 +17,23 @@ class Settings(BaseSettings):
     # Set to true ONLY for local dev where you can't easily create a read-only admin.
     meraki_allow_write_key: bool = False
 
-    # GitHub Models
+    # GitHub Models (legacy / dev only — disabled for data-sovereign demos)
     github_token: str = ""
-    model_id: str = "openai/gpt-4o-mini"
+    model_id: str = "qwen3-vl-235b-awq"
     # Optional override to point the VLM layer at a self-hosted server
     # (vLLM / SGLang / anything OpenAI-compatible). Empty -> GitHub Models.
     vlm_base_url: str = ""
     # API key for the override endpoint. Empty -> falls back to GITHUB_TOKEN.
     vlm_api_key: str = ""
+    # Safety rail: cloud-hosted models are hidden and cannot be selected unless
+    # this is explicitly enabled. Keep false for the Cisco/Curtin expo so no
+    # frame can ever leave the local inference path by accident.
+    allow_cloud_models: bool = False
+
+    # Demo profile: when set, load config/cameras.<profile>.yaml instead of
+    # config/cameras.yaml. Use DEMO_PROFILE=replay to switch the whole app to
+    # recorded footage without editing the live camera config.
+    demo_profile: str = ""
 
     # App
     api_key: str = "changeme"

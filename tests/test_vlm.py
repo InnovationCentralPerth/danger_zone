@@ -19,8 +19,17 @@ def reset_vlm():
 def test_list_models_from_config():
     models = vlm.list_models()
     ids = {m.id for m in models}
+    # The raw catalogue keeps cloud entries for dev, but marks them non-local.
     assert "openai/gpt-4o-mini" in ids
     assert all(isinstance(m.vision, bool) for m in models)
+    assert next(m for m in models if m.id == "qwen3-vl-235b-awq").local is True
+    assert next(m for m in models if m.id == "openai/gpt-4o-mini").local is False
+
+
+def test_available_models_exclude_cloud_by_default():
+    ids = {m.id for m in vlm.list_available_models()}
+    assert "qwen3-vl-235b-awq" in ids
+    assert "openai/gpt-4o-mini" not in ids
 
 
 def test_list_vision_models_filters_text_only():
@@ -34,7 +43,7 @@ def test_default_model_id_uses_config_default(monkeypatch):
     from app import config
 
     config.get_settings.cache_clear()
-    assert vlm.default_model_id() == "openai/gpt-4o-mini"
+    assert vlm.default_model_id() == "qwen3-vl-235b-awq"
 
 
 def test_set_active_model_rejects_unknown():
@@ -42,9 +51,29 @@ def test_set_active_model_rejects_unknown():
         vlm.set_active_model("nope/never")
 
 
+def test_set_active_model_rejects_cloud_by_default():
+    with pytest.raises(vlm.VLMError):
+        vlm.set_active_model("openai/gpt-4o")
+
+
 def test_set_active_model_round_trip():
-    vlm.set_active_model("openai/gpt-4o")
-    assert vlm.get_active_model() == "openai/gpt-4o"
+    vlm.set_active_model("qwen3-vl-235b-awq")
+    assert vlm.get_active_model() == "qwen3-vl-235b-awq"
+
+
+def test_cloud_models_can_be_enabled_explicitly(monkeypatch):
+    monkeypatch.setenv("ALLOW_CLOUD_MODELS", "true")
+    from app import config
+
+    config.get_settings.cache_clear()
+    try:
+        ids = {m.id for m in vlm.list_available_models()}
+        assert "openai/gpt-4o-mini" in ids
+        vlm.set_active_model("openai/gpt-4o")
+        assert vlm.get_active_model() == "openai/gpt-4o"
+    finally:
+        config.get_settings.cache_clear()
+        vlm.reset_provider()
 
 
 async def test_analyse_image_parses_json(monkeypatch):

@@ -16,6 +16,11 @@
 # `camera.snapshot` topic (i.e. how often the VLM agents may run). Keep it low:
 # the agents enforce their own cooldown on top of this.
 #
+# `demo_label` is shown as a badge on the dashboard tile. Set it to "REPLAY"
+# for recorded footage, "LIVE" for RTSP, or omit it to infer from the source.
+# This profile can be swapped wholesale with DEMO_PROFILE=replay, which loads
+# config/cameras.replay.yaml instead of this file.
+#
 # Ingest only starts when INGEST_ENABLED=true.
 
 cameras:
@@ -52,6 +57,7 @@ cameras:
   #
   # - serial: "DEMO-FILE-0001"
   #   name: "Recorded Demo Clip"
+  #   demo_label: "REPLAY"          # shown on the dashboard tile
   #   source:
   #     type: file
   #     uri: "data/demo/ppe_clip.mp4"

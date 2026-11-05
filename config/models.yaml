@@ -1,8 +1,14 @@
 # VLM model catalogue — served via an OpenAI-compatible API
 # (local vLLM, GitHub Models, or any compatible endpoint).
+#
 # Only models with vision: true can process camera snapshots.
+#
+# `local: true` marks a model served inside the trusted network. Cloud-hosted
+# entries are hidden from the picker and rejected by the API unless
+# ALLOW_CLOUD_MODELS=true. Keep the expo on a local model so no frame can leave
+# the closed network by accident.
 
-default: "openai/gpt-4o-mini"
+default: "qwen3-vl-235b-awq"
 
 models:
   # ---- local (self-hosted vLLM) -------------------------------------------
@@ -10,24 +16,29 @@ models:
     label: "Qwen3-VL 235B A22B AWQ (local, 2×H100)"
     vision: true
     max_tokens: 2048
+    local: true
 
-  # ---- GitHub Models (hosted) ---------------------------------------------
+  # ---- hosted (disabled by default) ---------------------------------------
   - id: "openai/gpt-4o-mini"
-    label: "GPT-4o mini (fast, low cost)"
+    label: "GPT-4o mini (cloud — disabled)"
     vision: true
     max_tokens: 1024
+    local: false
 
   - id: "openai/gpt-4o"
-    label: "GPT-4o (higher quality)"
+    label: "GPT-4o (cloud — disabled)"
     vision: true
     max_tokens: 2048
+    local: false
 
   - id: "anthropic/claude-3-5-sonnet"
-    label: "Claude 3.5 Sonnet"
+    label: "Claude 3.5 Sonnet (cloud — disabled)"
     vision: true
     max_tokens: 2048
+    local: false
 
   - id: "meta/llama-3.3-70b-instruct"
-    label: "Llama 3.3 70B (text only)"
+    label: "Llama 3.3 70B (cloud, text only — disabled)"
     vision: false
     max_tokens: 2048
+    local: false

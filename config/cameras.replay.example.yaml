@@ -1,0 +1,82 @@
+# Replay demo profile — copy to config/cameras.replay.yaml and set
+# DEMO_PROFILE=replay before starting the app.
+#
+# This profile swaps the live Meraki/RTSP sources for recorded clips. The
+# dashboard labels every tile REPLAY, so the audience is never told the video
+# is live. The VLM still analyses each frame in real time — only the footage is
+# recorded. Change the mission live to prove the analysis is not canned.
+#
+# Record/export one clip per camera, 8–15 minutes each, and drop them in
+# data/demo/. See docs/EXPO_RUNBOOK.md for the cue sheet and recording guide.
+#
+# Ingest only starts when INGEST_ENABLED=true.
+# Files are looped in real time at `speed: 1.0`.
+# `vlm_fps: 1.0` gives one VLM snapshot per second per camera; the agents still
+# enforce their own cooldown. Use 0.5 if the 235B falls behind with 3 cameras.
+
+cameras:
+  - serial: "Q2GV-XPS8-82TX"          # ICP workshop — main PPE camera
+    name: "REPLAY — ICP Workshop"
+    location: "ICP Building - Workshop"
+    demo_label: "REPLAY"
+    source:
+      type: file
+      uri: "data/demo/workshop.mp4"
+      loop: true
+      speed: 1.0
+      fps: 5
+      width: 1280
+    ppe_area:
+      name: "Workshop Floor"
+      required_item: "hard_hat"
+      polygon:
+        - [0.0, 0.0]
+        - [1.0, 0.0]
+        - [1.0, 1.0]
+        - [0.0, 1.0]
+    cooldown_seconds: 5
+    vlm_fps: 1.0
+
+  - serial: "Q2GV-MGCS-QRM5"          # demo area
+    name: "REPLAY — ICP Demo Area"
+    location: "ICP Building - Demo Area"
+    demo_label: "REPLAY"
+    source:
+      type: file
+      uri: "data/demo/demo-area.mp4"
+      loop: true
+      speed: 1.0
+      fps: 5
+      width: 1280
+    ppe_area:
+      name: "Workshop Floor"
+      required_item: "hard_hat"
+      polygon:
+        - [0.0, 0.0]
+        - [1.0, 0.0]
+        - [1.0, 1.0]
+        - [0.0, 1.0]
+    cooldown_seconds: 5
+    vlm_fps: 1.0
+
+  - serial: "Q2GV-52D5-YTLK"          # coffee area — optional second angle
+    name: "REPLAY — ICP Coffee Area"
+    location: "ICP Building - Coffee Area"
+    demo_label: "REPLAY"
+    source:
+      type: file
+      uri: "data/demo/coffee.mp4"
+      loop: true
+      speed: 1.0
+      fps: 5
+      width: 1280
+    ppe_area:
+      name: "Workshop Floor"
+      required_item: "hard_hat"
+      polygon:
+        - [0.0, 0.0]
+        - [1.0, 0.0]
+        - [1.0, 1.0]
+        - [0.0, 1.0]
+    cooldown_seconds: 5
+    vlm_fps: 1.0

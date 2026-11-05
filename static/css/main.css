@@ -303,3 +303,25 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
   .funder-logo          { height: 32px; }
   .funder-logo-cisco    { height: 26px; }
 }
+
+/* Camera source label — sits over the frame so screenshots are unambiguous. */
+.camera-mode-overlay {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 3;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.92;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+@media (max-width: 576px) {
+  .funder-logo          { height: 32px; }
+  .funder-logo-cisco    { height: 26px; }
+}

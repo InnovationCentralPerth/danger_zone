@@ -1,31 +1,56 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.ingest.base import FrameRing
 from app.integrations.meraki import MerakiError, fetch_and_persist_snapshot, get_client
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+_MJPEG_BOUNDARY = b"frame"
+_MJPEG_STALE_SECONDS = 10.0
 
 
 class CameraInfo(BaseModel):
     serial: str
     name: str
     location: str
+    # `source_type` is null for Meraki-cloud-only cameras (no ingest block).
+    # `demo_label` is an explicit operator label (LIVE / REPLAY / SYNTHETIC).
+    source_type: str | None = None
+    demo_label: str | None = None
+    vlm_fps: float | None = None
 
 
 @router.get("/", summary="List configured cameras")
 async def list_cameras() -> list[CameraInfo]:
-    """List cameras from local config (config/cameras.yaml)."""
+    """List cameras from local config (config/cameras.yaml or the active profile)."""
     from app.services.config_loader import load_cameras
 
     cameras = load_cameras()
-    return [CameraInfo(serial=c["serial"], name=c["name"], location=c["location"]) for c in cameras]
+    out: list[CameraInfo] = []
+    for c in cameras:
+        src = c.get("source") or {}
+        out.append(
+            CameraInfo(
+                serial=str(c.get("serial", "")),
+                name=str(c.get("name") or c.get("serial") or ""),
+                location=str(c.get("location") or ""),
+                source_type=str(src["type"]) if src.get("type") else None,
+                demo_label=str(c["demo_label"]) if c.get("demo_label") else None,
+                vlm_fps=float(c["vlm_fps"]) if c.get("vlm_fps") is not None else None,
+            )
+        )
+    return out
 
 
 @router.get("/devices", summary="List MV cameras from Meraki org (live)")
@@ -137,3 +162,63 @@ async def get_latest_snapshot(serial: str) -> FileResponse:
     if not matches:
         raise HTTPException(status_code=404, detail=f"No snapshots on disk for {serial}")
     return FileResponse(matches[0], media_type="image/jpeg")
+
+
+async def _mjpeg_frames(
+    ring: FrameRing,
+    *,
+    stale_seconds: float = _MJPEG_STALE_SECONDS,
+    poll_seconds: float = 0.1,
+) -> AsyncIterator[bytes]:
+    """Yield the newest ring frame as a multipart JPEG stream.
+
+    Frames are only sent when the sequence advances, so a 5 fps source does not
+    flood the browser with duplicates. If the source stops producing frames for
+    ``stale_seconds`` the generator ends; the dashboard then shows a stalled
+    state instead of freezing on an old image forever.
+    """
+    last_seq: int | None = None
+    last_change = time.monotonic()
+    while True:
+        frame = ring.latest()
+        if frame is not None and frame.seq != last_seq:
+            last_seq = frame.seq
+            last_change = time.monotonic()
+            yield (
+                b"--"
+                + _MJPEG_BOUNDARY
+                + b"\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                + str(len(frame.jpeg)).encode()
+                + b"\r\n\r\n"
+                + frame.jpeg
+                + b"\r\n"
+            )
+        elif time.monotonic() - last_change > stale_seconds:
+            return
+        await asyncio.sleep(poll_seconds)
+
+
+@router.get(
+    "/{serial}/stream.mjpg",
+    summary="MJPEG stream from the ingest frame ring",
+)
+async def stream_camera(serial: str) -> StreamingResponse:
+    """Serve a live MJPEG stream for ingest-backed cameras.
+
+    Meraki-cloud-only cameras have no ring and return 404; the dashboard keeps
+    using the snapshot endpoint for those. Works for file, RTSP and synthetic
+    sources, so the tile looks like video during a replay demo.
+    """
+    from app.ingest.manager import ingest_manager
+
+    ring = ingest_manager.ring(serial)
+    if ring is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No ingest stream for {serial} (Meraki-cloud camera or ingest off)",
+        )
+    return StreamingResponse(
+        _mjpeg_frames(ring),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )

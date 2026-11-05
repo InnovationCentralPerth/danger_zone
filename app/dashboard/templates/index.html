@@ -61,6 +61,17 @@
               <label for="mission-input" class="small text-muted mb-1">
                 Describe what PPE workers must wear (plain English):
               </label>
+              <div class="d-flex flex-wrap gap-1 mb-2">
+                <span class="small text-muted me-1 align-self-center">Presets:</span>
+                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
+                        data-mission="Workers in this workshop must wear a hard hat.">Hard hat</button>
+                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
+                        data-mission="Workers in this workshop must wear a hard hat and a high-visibility safety vest.">Hard hat + vest</button>
+                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
+                        data-mission="Workers in this workshop must wear a hard hat, a high-visibility safety vest, and safety goggles.">All three</button>
+                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
+                        data-mission="Workers in this workshop must wear safety goggles.">Goggles only</button>
+              </div>
               <div class="d-flex gap-2 align-items-start">
                 <textarea id="mission-input"
                           class="form-control bg-dark text-light border-secondary"
@@ -102,6 +113,7 @@
               <option value="">Loading…</option>
             </select>
             <span id="camera-serial" class="text-muted small"></span>
+            <span id="camera-mode" class="badge bg-secondary d-none">—</span>
           </div>
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <span id="camera-status" class="badge bg-secondary">idle</span>
@@ -124,6 +136,7 @@
                  alt="Camera snapshot"
                  class="img-fluid rounded camera-snapshot d-none"
                  style="max-height: 50vh;"/>
+            <div id="camera-mode-overlay" class="camera-mode-overlay d-none">REPLAY</div>
             <svg id="zone-overlay"
                  class="position-absolute top-0 start-0 w-100 h-100 d-none"
                  viewBox="0 0 100 100"

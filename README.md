@@ -7,7 +7,9 @@ Agentic AI security demonstrator using Meraki cameras and network infrastructure
 Three proactive AI agents watch your environment and log incidents automatically:
 
 - **Zone Intrusion** — Detects people entering a configured exclusion zone via camera
-- **PPE Compliance** — Checks for yellow hard hat in a work area using a VLM
+- **PPE Compliance** — Checks a work area for required PPE (hard hat, vest,
+  safety goggles, ...) using a local VLM; the requirement can be changed live
+  in plain English
 - **Rogue Device** — Flags non-whitelisted MAC addresses joining the network
 
 A live HTMX dashboard shows the agent reasoning traces, incidents, and status in real time. A documented REST API lets other AI agents query state and trigger agents on demand.
@@ -16,7 +18,7 @@ A live HTMX dashboard shows the agent reasoning traces, incidents, and status in
 
 ```bash
 cp .env.example .env
-# Fill in MERAKI_API_KEY, MERAKI_ORG_ID, GITHUB_TOKEN, etc.
+# Fill in MERAKI_API_KEY, MERAKI_ORG_ID, VLM_BASE_URL / VLM_API_KEY, etc.
 
 uv python install 3.12          # if 3.12 isn't already available
 uv venv --python 3.12

@@ -203,10 +203,11 @@ class ModelInfo:
     label: str
     vision: bool
     max_tokens: int
+    local: bool = False
 
 
 def list_models() -> list[ModelInfo]:
-    """Return all configured models from config/models.yaml."""
+    """Return every model in config/models.yaml, including disabled ones."""
     cfg = load_models()
     return [
         ModelInfo(
@@ -214,31 +215,62 @@ def list_models() -> list[ModelInfo]:
             label=m["label"],
             vision=bool(m.get("vision", False)),
             max_tokens=int(m.get("max_tokens", 1024)),
+            local=bool(m.get("local", False)),
         )
         for m in cfg.get("models", [])
     ]
 
 
+def list_available_models() -> list[ModelInfo]:
+    """Return the models selectable at runtime.
+
+    Cloud-hosted entries are filtered out unless ``ALLOW_CLOUD_MODELS=true``.
+    This is the data-sovereignty guard: an operator cannot accidentally switch
+    the VLM to a hosted provider during a closed-network demo.
+    """
+    models = list_models()
+    if get_settings().allow_cloud_models:
+        return models
+    return [m for m in models if m.local]
+
+
 def list_vision_models() -> list[ModelInfo]:
-    return [m for m in list_models() if m.vision]
+    return [m for m in list_available_models() if m.vision]
 
 
 def default_model_id() -> str:
     """Resolve the active model id.
 
-    Precedence: MODEL_ID env > config/models.yaml `default` > first vision model.
+    Precedence: MODEL_ID env > config/models.yaml ``default`` > first available
+    vision model. A MODEL_ID that is not currently selectable (for example a
+    cloud model while ``ALLOW_CLOUD_MODELS=false``) is ignored with a warning.
     """
+    available = list_available_models()
+    by_id = {m.id: m for m in available}
+
     env_id = get_settings().model_id
     if env_id:
-        return env_id
+        if env_id in by_id:
+            return env_id
+        logger.warning(
+            "MODEL_ID=%s is not selectable (cloud models disabled?); using a local model",
+            env_id,
+        )
+
     cfg = load_models()
     default = cfg.get("default")
-    if default:
+    if default and default in by_id:
         return str(default)
-    vision = list_vision_models()
+
+    vision = [m for m in available if m.vision]
     if vision:
         return vision[0].id
-    raise VLMError("No models configured in config/models.yaml")
+    if available:
+        return available[0].id
+    raise VLMError(
+        "No selectable models configured in config/models.yaml. "
+        "Add a local model (local: true) or set ALLOW_CLOUD_MODELS=true."
+    )
 
 
 # ---- singleton -------------------------------------------------------------
@@ -265,9 +297,13 @@ def get_provider() -> OpenAICompatibleProvider:
 def set_active_model(model_id: str) -> None:
     """Set the model used for subsequent VLM calls (runtime override)."""
     global _active_model_id
-    valid_ids = {m.id for m in list_models()}
+    valid_ids = {m.id for m in list_available_models()}
     if model_id not in valid_ids:
-        raise VLMError(f"Unknown model: {model_id}. Add it to config/models.yaml")
+        raise VLMError(
+            f"Unknown or unavailable model: {model_id}. "
+            "Add it to config/models.yaml (local: true), or set "
+            "ALLOW_CLOUD_MODELS=true to enable hosted models."
+        )
     _active_model_id = model_id
     logger.info("Active VLM model set to %s", model_id)
 

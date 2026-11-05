@@ -1,5 +1,6 @@
 .env
 .env~
+.meraki_key.env
 *~
 .*.swp
 data/
@@ -17,4 +18,6 @@ dist/
 
 # Site-specific config (use config/*.example.yaml as templates)
 config/cameras.yaml
+config/cameras.*.yaml
+!config/cameras.*.example.yaml
 config/whitelist.yaml

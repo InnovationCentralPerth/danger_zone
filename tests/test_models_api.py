@@ -22,12 +22,13 @@ def setup(tmp_path, monkeypatch):
     vlm.reset_provider()
 
 
-async def test_list_models():
+async def test_list_models_hides_cloud_by_default():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.get("/models/")
     assert r.status_code == 200
     ids = [m["id"] for m in r.json()]
-    assert "openai/gpt-4o-mini" in ids
+    assert "qwen3-vl-235b-awq" in ids
+    assert "openai/gpt-4o-mini" not in ids
 
 
 async def test_get_and_set_active_model():
@@ -36,12 +37,18 @@ async def test_get_and_set_active_model():
         assert r.status_code == 200
         original = r.json()["id"]
 
-        r = await ac.post("/models/active", json={"id": "openai/gpt-4o"})
+        r = await ac.post("/models/active", json={"id": "qwen3-vl-235b-awq"})
         assert r.status_code == 200
-        assert r.json()["id"] == "openai/gpt-4o"
+        assert r.json()["id"] == "qwen3-vl-235b-awq"
 
         # Restore.
         await ac.post("/models/active", json={"id": original})
+
+
+async def test_set_active_cloud_model_rejected_by_default():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/models/active", json={"id": "openai/gpt-4o"})
+    assert r.status_code == 400
 
 
 async def test_set_active_unknown_model_400():

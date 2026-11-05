@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.integrations.vlm import (
     VLMError,
     get_active_model,
-    list_models,
+    list_available_models,
     set_active_model,
 )
 
@@ -30,7 +30,7 @@ class ActiveModelDTO(BaseModel):
 async def get_models() -> list[ModelDTO]:
     return [
         ModelDTO(id=m.id, label=m.label, vision=m.vision, max_tokens=m.max_tokens)
-        for m in list_models()
+        for m in list_available_models()
     ]
 
 

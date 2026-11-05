@@ -64,12 +64,25 @@ config/
 | `mission_context.changed` | `set_context` / `clear_context` | dashboard SSE (live-refresh mission card) |
 
 ## VLM / LLM Provider
-- GitHub Models API (OpenAI-compatible): `https://models.github.ai/inference`
-- Auth: `GITHUB_TOKEN` (PAT) as Bearer token
-- Default model: `openai/gpt-4o-mini` (vision-capable)
-- Only models with `vision: true` in `config/models.yaml` can process snapshots
-- Provider abstraction lives in `app/integrations/vlm.py` — `GitHubModelsProvider.analyse_image()` sends image as base64 data URL and forces `response_format=json_object`. `GitHubModelsProvider.complete()` is the text-only sibling used by the mission-context parser (system + user prompt, optional `json_response`).
-- Active model switchable at runtime via `POST /models/active` or the dashboard dropdown
+- **Local-first** for the Cisco/Curtin expo. The default is a self-hosted vLLM
+  server (`VLM_BASE_URL=http://127.0.0.1:8000/v1`) serving
+  `qwen3-vl-235b-awq` on 2×H100. The provider class is still named
+  `GitHubModelsProvider` because it speaks the same OpenAI-compatible protocol;
+  it can point at any compatible endpoint.
+- Cloud models (GitHub Models / OpenAI / Anthropic) are **hidden from
+  `/models/` and rejected by `set_active_model` unless
+  `ALLOW_CLOUD_MODELS=true`**. This is a data-sovereignty guard: an operator
+  cannot accidentally send a frame to a hosted provider.
+- `config/models.yaml` marks local entries with `local: true` and sets
+  `default: qwen3-vl-235b-awq`. `list_available_models()` applies the filter;
+  `list_models()` still returns the raw catalogue for diagnostics.
+- Only models with `vision: true` can process snapshots.
+- Provider abstraction lives in `app/integrations/vlm.py` —
+  `analyse_image()` sends the image as a base64 data URL and forces
+  `response_format=json_object`; `complete()` is the text-only sibling used by
+  the mission-context parser.
+- Active model switchable at runtime via `POST /models/active` or the dashboard
+  dropdown, but only among currently selectable (local) models.
 
 ## External Agent API
 - OpenAPI at `/docs`. **The REST API currently has no auth dependency** — `API_KEY` is only enforced by the MCP bridge below, so anyone who can reach port 8001 can call it. Keep it on localhost or a trusted tailnet/ACL.
@@ -131,6 +144,19 @@ config/
 - `static/js/main.js::loadZones()` builds SVG polygons inside `#zone-overlay` (viewBox 0 0 100 100, coords * 100) and renders pills in `#zone-legend`. Overlay revealed only after a snapshot loads.
 - Exclusion zone = red `#ff3c3c` (`kind: "intrusion"`); PPE area = yellow `#ffd200` (`kind: "ppe"`).
 
+## Dashboard source labels and mission presets
+- `static/js/main.js::cameraModeFor()` labels each tile from `/cameras/`:
+  `LIVE` (`source_type: rtsp`), `LIVE (CLOUD)` (Meraki snapshot, no `source:`),
+  `REPLAY` (`source_type: file` or explicit `demo_label`), `SYNTHETIC`
+  (`source_type: synthetic`). The badge appears in the tile header and as an
+  overlay on the image (`#camera-mode-overlay`) so screenshots are unambiguous.
+- Ingest-backed cameras use the MJPEG stream; Meraki-cloud cameras keep the
+  snapshot-polling path. `refreshSnapshot()` must not reset an active MJPEG
+  stream on every `camera.snapshot` SSE event.
+- The mission card has one-click presets (Hard hat, Hard hat + vest, All three,
+  Goggles only) that fill the textarea and submit immediately. The mission
+  parser preserves “safety goggles” rather than normalising it to “glasses”.
+
 ## Analytics-gated capture watcher
 - `app/services/analytics_watcher.py` owns one asyncio.Task per camera that polls Meraki's on-device analytics (`/devices/{serial}/camera/analytics/recent`) on an interval. A snapshot is only fetched (`fetch_and_persist_snapshot`) and published onto `camera.snapshot` (with `trigger: "watcher"`) when a person is detected in the Full-Frame zone. Replaces the dumb auto-capture loop — the demo still feels agentic but VLM calls only happen when something interesting is in frame, drastically cutting GitHub Models token spend.
 - **Gate rule** (per poll, per camera): for zone `"0"` (Full Frame), if `endTs` advanced **AND** (`averageCount > 0` **OR** `entrances > last_entrances`) → trigger snapshot. Otherwise publish a quiet tick and skip. Catches both "person currently in frame" and "person just walked in" rising edges.
@@ -157,7 +183,10 @@ config/
 - `app/ingest/manager.py` starts one task per camera that declares a `source:` block in `config/cameras.yaml`. Per frame it pushes into a bounded drop-oldest `FrameRing` and publishes `camera.frame`; at `vlm_fps` it also persists a JPEG and publishes `camera.snapshot` (the topic the VLM agents already consume). Rate-limiting snapshots is deliberate — a slow VLM must never stall ingest.
 - Cameras without a `source:` block are ignored, so Meraki-only installs are unchanged. Ingest is off unless `INGEST_ENABLED=true`.
 - `GET /cameras/ingest` reports running sources, buffer depth and last sequence. `POST /cameras/{serial}/snapshot` returns the newest buffered frame for ingest-backed cameras instead of calling Meraki.
+- `GET /cameras/{serial}/stream.mjpg` serves a multipart MJPEG stream from the frame ring (only new sequence numbers are sent; the generator ends after 10 s with no new frames). Returns 404 for Meraki-cloud-only cameras. The dashboard uses this for ingest-backed tiles so file/RTSP/synthetic sources look like video instead of a once-per-second still.
+- `GET /cameras/` now exposes `source_type`, `demo_label`, and `vlm_fps` so the dashboard can label a tile `LIVE`, `LIVE (CLOUD)`, `REPLAY`, or `SYNTHETIC`.
 - Demo config: a synthetic camera lives in the (gitignored) `config/cameras.yaml`. The default script cycles empty → compliant worker → worker without a hard hat, so a PPE demo always lands on cue.
+- `DEMO_PROFILE=replay` loads `config/cameras.replay.yaml`; see `docs/EXPO_RUNBOOK.md` for the cue sheet and recording guide.
 
 ## Webhook setup (Meraki → app)
 - Endpoint: `POST /webhooks/meraki`
@@ -168,18 +197,30 @@ config/
 ## Required env vars (see `.env.example`)
 - `MERAKI_API_KEY`, `MERAKI_ORG_ID`, `MERAKI_WEBHOOK_SECRET`
 - `MERAKI_ALLOW_WRITE_KEY=true` to bypass the read-only-key safety check (dev only)
-- `GITHUB_TOKEN`, `MODEL_ID` (default: `openai/gpt-4o-mini`)
-  - Get a token via the device flow helper: `python scripts/gh_device_login.py` — runs the standard GitHub OAuth 2.0 device flow, prints a user code, polls for the access token, and writes it into `.env`. Default client_id is the public gh CLI one; override with `--client-id` or `GITHUB_OAUTH_CLIENT_ID` env var. Restart the server afterwards.
+- `VLM_BASE_URL` / `VLM_API_KEY` — point the VLM layer at a self-hosted
+  OpenAI-compatible server (e.g. `http://127.0.0.1:8000/v1`).
+- `MODEL_ID` — default `qwen3-vl-235b-awq` (local). If it names a cloud model
+  while `ALLOW_CLOUD_MODELS=false`, it is ignored with a warning and the first
+  local model is used.
+- `ALLOW_CLOUD_MODELS` — default `false`. When false, cloud entries are hidden
+  and cannot be selected.
+- `GITHUB_TOKEN` — legacy cloud fallback, only used when `VLM_BASE_URL` is
+  empty. The device-flow helper `python scripts/gh_device_login.py` still works.
 - `API_KEY` (for external agent auth)
 - `INGEST_ENABLED` — start ingest tasks for cameras with a `source:` block (default `false`)
-- `VLM_BASE_URL` / `VLM_API_KEY` — point the VLM layer at a self-hosted OpenAI-compatible server (e.g. `http://127.0.0.1:8000/v1`); empty `VLM_BASE_URL` keeps GitHub Models
+- `DEMO_PROFILE` — optional camera-config profile. `DEMO_PROFILE=replay` loads
+  `config/cameras.replay.yaml` instead of `config/cameras.yaml`; missing profile
+  files fall back to the default with a warning.
 - `DEBUG=true` enables verbose logging / FastAPI debug
 - `DEMO_AGENT=true` runs the synthetic demo agent (fires fake incidents every 15s). Decoupled from `DEBUG` so you can run verbose logs against the real camera without synthetic noise.
 
 ## Config files
 - `config/cameras.yaml` — **gitignored**; copy from `config/cameras.example.yaml`. Optional per-camera overrides (zone polygons, cooldown, PPE item). Cameras are discovered live via Meraki `GET /organizations/{id}/devices`; YAML entries only override the full-frame defaults for the listed serials. Loader falls back to the `.example.yaml` if the real file is missing.
+- `config/cameras.<profile>.yaml` — **gitignored** site-specific profiles. `DEMO_PROFILE=<profile>` selects one; `replay` is the expo profile.
+- `config/cameras.replay.example.yaml` — checked-in template for recorded-footage demos. Points at `data/demo/*.mp4`, sets `demo_label: "REPLAY"` and `vlm_fps: 1.0`.
 - `config/whitelist.yaml` — **gitignored**; copy from `config/whitelist.example.yaml`. MAC entries with label/vendor; separate `blacklist` section.
-- `config/models.yaml` — checked in; model catalogue, `default` key sets startup default.
+- `config/models.yaml` — checked in; model catalogue, `local: true` marks self-hosted models, `default` sets the startup default. Cloud entries are hidden unless `ALLOW_CLOUD_MODELS=true`.
+- `.meraki_key.env` — **gitignored**; never commit it.
 
 ## Docker stack
 - `docker/Dockerfile` — multi-stage. Builder stage uses `ghcr.io/astral-sh/uv` and `uv sync --frozen --no-dev` against `uv.lock` for reproducible installs. Runtime stage is `python:3.12-slim` + `tini` (clean SIGTERM → asyncio task cancellation) + `curl` (for HEALTHCHECK). Runs as non-root `appuser` (UID/GID default `1000:1000`, override via `--build-arg UID=$(id -u) GID=$(id -g)`).
