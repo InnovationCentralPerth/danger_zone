@@ -40,7 +40,10 @@ function escapeHtml(s) {
 }
 
 function parseExtra(d) {
-  if (!d || !d.extra_json) return {};
+  if (!d) return {};
+  // Live (SSE) incidents carry `extra` as an object; history rows carry `extra_json`.
+  if (d.extra && typeof d.extra === 'object') return d.extra;
+  if (!d.extra_json) return {};
   try { return JSON.parse(d.extra_json); } catch { return {}; }
 }
 
@@ -336,6 +339,7 @@ function initPlaybackControls() {
     pendingLoopA = null;
     sendPlayback({ clear_loop: true });
   });
+  document.getElementById('feed-clear')?.addEventListener('click', clearFeed);
   document.getElementById('scope-camera')?.addEventListener('click', () => setScope('camera'));
   document.getElementById('scope-all')?.addEventListener('click', () => setScope('all'));
   applyScope();
@@ -751,8 +755,11 @@ async function clearMission() {
 
 // Live-refresh when another client (or external agent) changes the mission
 evtSource.addEventListener('mission_context_changed', (e) => {
-  try { renderMissionContext(JSON.parse(e.data)); }
-  catch (err) { console.error('Bad mission_context_changed payload', err); }
+  try {
+    const state = JSON.parse(e.data);
+    renderMissionContext(state);
+    addMissionMarker(state);
+  } catch (err) { console.error('Bad mission_context_changed payload', err); }
 });
 
 // ---- model picker ---------------------------------------------------------
@@ -801,6 +808,48 @@ evtSource.addEventListener('camera_snapshot', (e) => {
 });
 
 // ---- incident / heartbeat / trace -----------------------------------------
+
+function truncate(text, n) {
+  const t = String(text || '');
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+}
+
+// ---- clear feed ------------------------------------------------------------
+// Non-destructive: remember the newest incident id and only show newer ones.
+
+let feedClearedAfterId = parseInt(localStorage.getItem('dz.feedClearedAfterId') || '0', 10) || 0;
+
+async function clearFeed() {
+  let newest = feedClearedAfterId;
+  try {
+    const r = await fetch('/incidents/?limit=1');
+    if (r.ok) {
+      const rows = await r.json();
+      if (Array.isArray(rows) && rows.length) newest = Math.max(newest, rows[0].id || 0);
+    }
+  } catch (e) { /* fall back to the highest id already on screen */ }
+  for (const el of document.querySelectorAll('#incident-list [data-incident-id]')) {
+    newest = Math.max(newest, parseInt(el.dataset.incidentId || '0', 10) || 0);
+  }
+  feedClearedAfterId = newest;
+  localStorage.setItem('dz.feedClearedAfterId', String(newest));
+
+  document.getElementById('incident-list').innerHTML =
+    '<p class="text-secondary text-center p-4">Feed cleared — watching…</p>';
+  document.getElementById('trace-list').innerHTML = '';
+  incidentCount = 0;
+  document.getElementById('incident-count').textContent = '0';
+  const note = document.getElementById('incident-hidden-note');
+  if (note) note.classList.add('d-none');
+}
+
+function addMissionMarker(state) {
+  const active = state && state.active && state.context;
+  const text = active ? `New mission: “${truncate(state.context.raw_input, 140)}”` : 'Mission cleared — back to the default';
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  prependTo('incident-list',
+    `<div class="mission-marker">▶ ${escapeHtml(text)}<small>${time}</small></div>`);
+}
 
 function cameraLabel(serial) {
   const meta = cameraMeta.get(serial);
@@ -865,8 +914,14 @@ function renderIncidentCard(d) {
        </a>`
     : '';
 
+  const mission = typeof extra.mission === 'string' ? extra.mission : '';
+  const missionTag = mission
+    ? `<span class="incident-meta-tag mission-tag" title="${escapeHtml(mission)}">Mission: ${escapeHtml(truncate(mission, 80))}</span>`
+    : '';
+
   const metaTags = [
     cameraId ? `<span class="incident-meta-tag camera-tag">${escapeHtml(cameraLabel(cameraId))}</span>` : '',
+    missionTag,
     clientMac ? `<span class="incident-meta-tag">MAC ${escapeHtml(clientMac)}</span>` : '',
   ].filter(Boolean).join('');
 
@@ -896,7 +951,8 @@ async function loadIncidents() {
   try {
     const r = await fetch('/incidents/?limit=60');
     if (!r.ok) return;
-    const rows = await r.json();
+    let rows = await r.json();
+    if (Array.isArray(rows)) rows = rows.filter((row) => (row.id || 0) > feedClearedAfterId);
     if (!Array.isArray(rows) || rows.length === 0) return;
     const host = document.getElementById('incident-list');
     host.innerHTML = '';
@@ -918,6 +974,7 @@ evtSource.addEventListener('incident_new', (e) => {
   const d = JSON.parse(e.data);
   // Skip duplicates already rendered by the hydrate pass
   if (d.id && document.querySelector(`[data-incident-id="${d.id}"]`)) return;
+  if (d.id && d.id <= feedClearedAfterId) return;
   const isAlert = !NON_ALERT_SEVERITIES.has(d.severity);
   if (isAlert) {
     incidentCount++;

@@ -236,6 +236,10 @@ agents and the real VLM.
   Now change the mission: the same footage is re-judged, so the verdict changes
   because the mission changed, not the video. Press **⟲ ✕** to carry on.
   Dragging the slider outside the loop ends it.
+- Each incident card is tagged with the mission that produced it, and a
+  **▶ New mission** line appears in the feed when you retask. **Clear feed**
+  empties the incident and reasoning lists for a clean slate (nothing is deleted;
+  earlier incidents stay in the database).
 - The incident and reasoning feeds default to **This camera**. All cameras are
   analysed all the time; "All cameras" shows everything, with the camera name on
   each card. Say this out loud if someone asks why a tile that is not on screen

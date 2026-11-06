@@ -144,6 +144,10 @@ config/
 ## Dashboard camera scope
 - The tile shows one camera, but agents run on **every** ingest camera and the incident/trace feeds are global. Each incident card and trace line carries `data-camera-id` and the camera's friendly name; a **This camera / All cameras** toggle (persisted in `localStorage` `dz.incidentScope`, default *this camera*) hides the rest and shows "N from other cameras hidden". `agent.trace` events include `serial`.
 
+## Dashboard feed controls
+- Incident cards show a **Mission: "…"** tag (from `extra.mission`, truncated, full text in the tooltip) so verdicts from different missions on the same footage are distinguishable. `mission_context_changed` SSE events add a **▶ New mission: "…"** marker line to the top of the feed (client-side only, not persisted).
+- **Clear feed** empties the incident and reasoning lists without deleting anything: it stores the newest incident id in `localStorage` (`dz.feedClearedAfterId`) and hydrate/SSE only show newer ids. `parseExtra` accepts both `extra` (live SSE object) and `extra_json` (history string).
+
 ## Dashboard zone overlay
 - Endpoint `GET /cameras/{serial}/zones` returns `{serial, zones: [{id, label, polygon, colour, kind, required_item?}]}`. Cameras with no `cameras.yaml` entry fall back to full-frame polygons (0,0 → 1,1) and `required_item: "hard_hat"` so Meraki-discovered cameras work without a YAML edit. Polygons are normalised 0..1 coords; loader falls back to `config/cameras.example.yaml` if real config missing.
 - `static/js/main.js::loadZones()` builds SVG polygons inside `#zone-overlay` (viewBox 0 0 100 100, coords * 100) and renders pills in `#zone-legend`. Overlay revealed only after a snapshot loads.

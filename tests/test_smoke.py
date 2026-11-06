@@ -51,3 +51,19 @@ async def test_dashboard_renders_zone_overlay_markup():
     assert "mission-preset" in body
     assert "main.js?v=" in body
     assert "main.css?v=" in body
+
+
+async def test_dashboard_has_replay_and_feed_controls():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/")
+    assert r.status_code == 200
+    for control in (
+        "playback-slider",
+        "loop-a",
+        "loop-b",
+        "loop-clear",
+        "feed-clear",
+        "scope-camera",
+        "scope-all",
+    ):
+        assert f'id="{control}"' in r.text, control

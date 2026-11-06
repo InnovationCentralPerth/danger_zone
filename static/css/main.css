@@ -342,3 +342,10 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
   background: rgba(255, 193, 7, 0.55); border: 1px solid #ffc107; border-radius: 4px;
   pointer-events: none;
 }
+.mission-marker {
+  margin: 0.5rem 0.75rem; padding: 0.35rem 0.6rem; border-left: 3px solid #ffc107;
+  background: rgba(255, 193, 7, 0.08); color: #ffc107; font-size: 0.82rem;
+}
+.mission-marker small { color: #adb5bd; margin-left: 0.4rem; }
+.mission-tag { color: #ffc107; border-color: rgba(255, 193, 7, 0.5); max-width: 28rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
