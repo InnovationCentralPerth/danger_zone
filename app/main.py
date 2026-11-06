@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
 
 
 app = FastAPI(
-    title="danger_zone",
+    title=get_settings().product_name,
     description="Agentic AI security demonstrator — Meraki cameras + network",
     version="0.1.0",
     lifespan=lifespan,

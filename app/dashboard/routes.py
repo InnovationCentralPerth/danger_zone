@@ -69,6 +69,7 @@ async def dashboard(request: Request) -> HTMLResponse:
             "asset_version": _asset_version(),
             "partners": _partners(),
             "site_name": get_settings().site_name,
+            "product_name": get_settings().product_name,
         },
     )
 

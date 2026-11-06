@@ -360,7 +360,7 @@ body.bg-dark { background-color: #090b10 !important; }
   clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%); /* shield */
   box-shadow: 0 0 10px rgba(220, 53, 69, 0.7);
 }
-.brand-name { font-weight: 800; letter-spacing: 0.22em; font-size: 1.15rem; color: #f1f3f5; }
+.brand-name { white-space: nowrap; font-weight: 800; letter-spacing: 0.22em; font-size: 1.15rem; color: #f1f3f5; }
 
 .opsbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.6rem;

@@ -92,3 +92,25 @@ def test_partner_logo_is_picked_up_when_file_is_dropped_in(tmp_path, monkeypatch
     logos = {p["key"]: p["logo"] for p in routes._partners()}
     assert logos["niin"] is not None and logos["niin"].endswith("/niin.svg")
     assert logos["meraki"] is None  # nothing else was dropped in
+
+
+async def test_product_name_comes_from_setting(monkeypatch):
+    from app import config
+
+    monkeypatch.setenv("PRODUCT_NAME", "Test Sentinel")
+    config.get_settings.cache_clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            html = (await ac.get("/")).text
+        assert "<title>Test Sentinel — AI Safety &amp; Security Monitor</title>" in html
+        assert '<span class="brand-name">TEST SENTINEL</span>' in html
+        assert "NIIN Sovereign Cloud · no external AI" in html
+    finally:
+        monkeypatch.delenv("PRODUCT_NAME")
+        config.get_settings.cache_clear()
+
+
+async def test_default_product_name_is_safety_sentry():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        html = (await ac.get("/")).text
+    assert '<span class="brand-name">SAFETY SENTRY</span>' in html
