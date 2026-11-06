@@ -1031,5 +1031,47 @@ evtSource.onerror = () => {
   document.getElementById('heartbeat-banner').textContent = 'Lost connection to agent stream — retrying…';
 };
 
-// Wire up replay scrubbing and incident-scope buttons once everything above is defined.
+// ---- status bar (clock, system, cameras, AI) -------------------------------
+
+function initOpsBar() {
+  const dot = document.getElementById('ops-dot');
+  const sys = document.getElementById('ops-system');
+  if (!dot || !sys) return;
+
+  const setSystem = (ok) => {
+    dot.className = `ops-dot ${ok ? 'ok' : 'bad'}`;
+    sys.textContent = ok ? 'ONLINE' : 'OFFLINE';
+  };
+  evtSource.addEventListener('open', () => setSystem(true));
+  evtSource.addEventListener('error', () => setSystem(false));
+
+  const clock = (zone) => new Date().toLocaleTimeString('en-AU', {
+    timeZone: zone, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const tick = () => {
+    document.getElementById('ops-clock-perth').textContent = clock('Australia/Perth');
+    document.getElementById('ops-clock-melb').textContent = clock('Australia/Melbourne');
+  };
+  tick();
+  setInterval(tick, 1000);
+
+  const refresh = async () => {
+    try {
+      const r = await fetch('/cameras/ingest');
+      const running = r.ok ? (await r.json()).filter((c) => c.running).length : 0;
+      const total = cameraMeta.size || running;
+      const modes = new Set([...cameraMeta.values()].map((m) => cameraModeFor(m)));
+      const mode = modes.size === 1 ? ` · ${[...modes][0]}` : '';
+      document.getElementById('ops-cameras').textContent = total ? `${running}/${total} streaming${mode}` : '–';
+    } catch (e) { /* keep last value */ }
+    const sel = document.getElementById('model-select');
+    const label = sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+    if (label && label !== 'loading…') document.getElementById('ops-ai').textContent = label;
+  };
+  refresh();
+  setInterval(refresh, 5000);
+}
+
+// Wire up replay scrubbing, incident-scope buttons and the status bar once everything above is defined.
 initPlaybackControls();
+initOpsBar();

@@ -67,3 +67,28 @@ async def test_dashboard_has_replay_and_feed_controls():
         "scope-all",
     ):
         assert f'id="{control}"' in r.text, control
+
+
+async def test_dashboard_powered_by_strip_and_status_bar():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/")
+    html = r.text
+    assert "Powered by" in html
+    assert 'src="/static/img/partners/meraki.png"' in html
+    assert 'src="/static/img/partners/splunk.png"' in html
+    # No NIIN logo file yet -> plain product name, never a broken <img>.
+    assert "NIIN Sovereign Cloud" in html
+    assert "/static/img/partners/niin." not in html
+    assert 'id="ops-clock-perth"' in html and 'id="ops-ai"' in html
+    assert "Splunk LLC" in html  # required trademark attribution
+
+
+def test_partner_logo_is_picked_up_when_file_is_dropped_in(tmp_path, monkeypatch):
+    from app.dashboard import routes
+
+    monkeypatch.setattr(routes, "_PARTNER_DIR", tmp_path)
+    assert {p["key"]: p["logo"] for p in routes._partners()}["niin"] is None
+    (tmp_path / "niin.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>")
+    logos = {p["key"]: p["logo"] for p in routes._partners()}
+    assert logos["niin"] is not None and logos["niin"].endswith("/niin.svg")
+    assert logos["meraki"] is None  # nothing else was dropped in

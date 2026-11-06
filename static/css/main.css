@@ -349,3 +349,50 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 .mission-marker small { color: #adb5bd; margin-left: 0.4rem; }
 .mission-tag { color: #ffc107; border-color: rgba(255, 193, 7, 0.5); max-width: 28rem;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+
+/* ---- security-monitor chrome ------------------------------------------- */
+
+body.bg-dark { background-color: #090b10 !important; }
+
+.brand-lockup { display: inline-flex; align-items: center; gap: 0.55rem; }
+.brand-mark {
+  width: 14px; height: 22px; background: #dc3545;
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%); /* shield */
+  box-shadow: 0 0 10px rgba(220, 53, 69, 0.7);
+}
+.brand-name { font-weight: 800; letter-spacing: 0.22em; font-size: 1.15rem; color: #f1f3f5; }
+
+.opsbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.6rem;
+  padding: 0.38rem 1rem; background: #0d1017; border-bottom: 1px solid #1d2230;
+  font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: #8b93a3;
+}
+.opsbar b { color: #e9ecef; font-weight: 600; letter-spacing: 0.06em; }
+.ops-item { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+.ops-sub { color: #6c7385; text-transform: none; letter-spacing: 0.02em; }
+.ops-sep { color: #2a3040; margin: 0 0.3rem; }
+.ops-clock b { font-variant-numeric: tabular-nums; font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
+.ops-dot { width: 8px; height: 8px; border-radius: 50%; background: #6c757d; }
+.ops-dot.ok { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; animation: opsPulse 2.4s ease-in-out infinite; }
+.ops-dot.bad { background: #ff3c3c; box-shadow: 0 0 8px #ff3c3c; }
+@keyframes opsPulse { 50% { opacity: 0.45; } }
+
+.card.bg-black { background: #0d1017 !important; border-color: #1d2230 !important; }
+.card-header { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; }
+
+/* Powered-by strip: every logo on a solid white tile (partner guidelines ask for
+   a plain, high-contrast background and an unaltered mark). */
+.strip-label { color: #8b93a3; font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; }
+.strip-divider { width: 1px; height: 28px; background: #2a3040; }
+.partner-tile {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; border-radius: 6px; padding: 6px 14px; min-height: 48px; line-height: 0;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+a.partner-tile:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6); }
+.partner-logo { height: 36px; width: auto; display: block; }
+.partner-logo-meraki { height: 40px; }
+.partner-logo-splunk { height: 26px; }
+.partner-wordmark { color: #1b1f27; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.02em; line-height: 1.2; }
+.strip-legal { color: #5b6272; font-size: 0.65rem; line-height: 1.4; max-width: 70rem; margin-inline: auto; }

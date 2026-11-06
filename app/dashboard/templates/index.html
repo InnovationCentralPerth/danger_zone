@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>danger_zone — AI Security Demonstrator</title>
+  <title>Danger Zone — AI Safety &amp; Security Monitor</title>
   <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js"></script>
   <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
@@ -19,8 +19,11 @@
          title="Innovation Central Perth">
         <img src="/static/img/icp-logo.svg" alt="Innovation Central Perth" class="navbar-icp-logo"/>
       </a>
-      <span class="navbar-brand fw-bold text-danger fs-4 mb-0">⚡ danger_zone</span>
-      <span class="navbar-subtitle small d-none d-md-inline">Agentic AI Security Demonstrator</span>
+      <span class="navbar-brand brand-lockup mb-0">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">DANGER&nbsp;ZONE</span>
+      </span>
+      <span class="navbar-subtitle small d-none d-md-inline">AI Safety &amp; Security Monitor</span>
     </div>
     <div class="d-flex align-items-center gap-2">
       <div id="agent-modes" class="d-flex align-items-center gap-1 me-2"></div>
@@ -32,6 +35,18 @@
     </div>
   </div>
 </nav>
+
+<div class="opsbar" role="status" aria-label="System status">
+  <span class="ops-item"><span id="ops-dot" class="ops-dot"></span>SYSTEM <b id="ops-system">CONNECTING</b></span>
+  <span class="ops-item">SITE <b>{{ site_name }}</b></span>
+  <span class="ops-item">CAMERAS <b id="ops-cameras">–</b></span>
+  <span class="ops-item">AI <b id="ops-ai">–</b> <span class="ops-sub">on-premise · no cloud AI</span></span>
+  <span class="ops-item ops-clock ms-auto">
+    <b id="ops-clock-perth">--:--:--</b> <span class="ops-sub">Perth</span>
+    <span class="ops-sep">|</span>
+    <b id="ops-clock-melb">--:--:--</b> <span class="ops-sub">Melbourne</span>
+  </span>
+</div>
 
 <div class="container-fluid py-3">
   <div class="row g-3">
@@ -220,16 +235,30 @@
 </div>
 
 <footer class="funder-strip mt-4 py-3 border-top border-secondary">
-  <div class="container-fluid d-flex flex-wrap align-items-center justify-content-center gap-4">
-    <span class="text-muted small text-uppercase" style="letter-spacing: 0.12em;">Powered by</span>
-    <a href="https://innovationcentralperth.com.au/" target="_blank" rel="noopener"
-       class="funder-link" title="Innovation Central Perth">
-      <img src="/static/img/icp-logo.svg" alt="Innovation Central Perth" class="funder-logo"/>
-    </a>
-    <a href="https://www.cisco.com/" target="_blank" rel="noopener"
-       class="funder-link" title="Cisco">
-      <img src="/static/img/cisco-logo.svg" alt="Cisco" class="funder-logo funder-logo-cisco"/>
-    </a>
+  <div class="container-fluid">
+    <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 gap-md-4">
+      <span class="strip-label">Powered by</span>
+      {% for p in partners %}
+        {% if p.href %}<a href="{{ p.href }}" target="_blank" rel="noopener" class="partner-tile" title="{{ p.name }}">{% else %}<span class="partner-tile" title="{{ p.name }}">{% endif %}
+          {% if p.logo %}<img src="{{ p.logo }}" alt="{{ p.name }}" class="partner-logo partner-logo-{{ p.key }}"/>{% else %}<span class="partner-wordmark">{{ p.name }}</span>{% endif %}
+        {% if p.href %}</a>{% else %}</span>{% endif %}
+      {% endfor %}
+      <span class="strip-divider d-none d-md-inline-block"></span>
+      <span class="strip-label">Supported by</span>
+      <a href="https://innovationcentralperth.com.au/" target="_blank" rel="noopener"
+         class="funder-link" title="Innovation Central Perth">
+        <img src="/static/img/icp-logo.svg" alt="Innovation Central Perth" class="funder-logo"/>
+      </a>
+      <a href="https://www.cisco.com/" target="_blank" rel="noopener"
+         class="funder-link" title="Cisco">
+        <img src="/static/img/cisco-logo.svg" alt="Cisco" class="funder-logo funder-logo-cisco"/>
+      </a>
+    </div>
+    <p class="strip-legal text-center mb-0 mt-2">
+      Splunk, Splunk&gt;, and Turn Data Into Doing are trademarks or registered trademarks of Splunk LLC in the
+      United States and other countries. Cisco and Meraki are trademarks of Cisco Systems, Inc. and/or its
+      affiliates. All other brand names, product names, or trademarks belong to their respective owners.
+    </p>
   </div>
 </footer>
 

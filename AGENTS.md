@@ -144,6 +144,11 @@ config/
 ## Dashboard camera scope
 - The tile shows one camera, but agents run on **every** ingest camera and the incident/trace feeds are global. Each incident card and trace line carries `data-camera-id` and the camera's friendly name; a **This camera / All cameras** toggle (persisted in `localStorage` `dz.incidentScope`, default *this camera*) hides the rest and shows "N from other cameras hidden". `agent.trace` events include `serial`.
 
+## Branding and status bar
+- Header: shield mark + **DANGER ZONE** wordmark, subtitle *AI Safety & Security Monitor*. Under it an **ops bar** shows SYSTEM (SSE connected/offline), SITE (`SITE_NAME` setting, default *Innovation Central Perth*), CAMERAS (`running/total streaming · mode` from `/cameras/ingest`), AI (model picker's current value, "on-premise · no cloud AI") and Perth/Melbourne clocks.
+- Footer **Powered by** strip: Cisco Meraki, Splunk, NIIN Sovereign Cloud, each on a solid white tile (partner guidelines want a plain background and an unaltered mark), then **Supported by** ICP + Cisco. Logos resolve from `static/img/partners/<key>.{svg,png,webp,jpg}` (`meraki`, `splunk`, `niin`) in `app/dashboard/routes.py::_PARTNERS`; a missing file falls back to the plain product name, never a broken image. Drop `niin.svg` (or png) in that folder and it appears on the next page load. The Splunk trademark attribution and Cisco/Meraki trademark line sit under the strip.
+- `static/img/partners/meraki.png` and `splunk.png` are cleaned display copies of `MERAKI_LOGO.webp` (checkerboard background removed) and `SPLUNK_LOGO.png` (margin trimmed); the originals are untouched. Replace them with the official files from the partner portals when available.
+
 ## Dashboard feed controls
 - Incident cards show a **Mission: "…"** tag (from `extra.mission`, truncated, full text in the tooltip) so verdicts from different missions on the same footage are distinguishable. `mission_context_changed` SSE events add a **▶ New mission: "…"** marker line to the top of the feed (client-side only, not persisted).
 - **Clear feed** empties the incident and reasoning lists without deleting anything: it stores the newest incident id in `localStorage` (`dz.feedClearedAfterId`) and hydrate/SSE only show newer ids. `parseExtra` accepts both `extra` (live SSE object) and `extra_json` (history string).

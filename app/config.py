@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     # Storage
     data_dir: Path = Path("data")
+    site_name: str = "Innovation Central Perth"
     snapshot_max_age_days: int = 30
 
     @property
