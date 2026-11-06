@@ -568,3 +568,24 @@ def test_severity_from_hint_mapping():
     assert sev_high_low.value == "MEDIUM"
     assert sev_medium.value == "MEDIUM"
     assert sev_low.value == "LOW"
+
+
+async def test_zone_only_mission_skips_ppe_agent(tmp_path):
+    from app.services.mission_context import AgentContext
+
+    snap = _write_snapshot(tmp_path)
+    ctx = AgentContext(
+        raw_input="keep off the bench", required_items=[], zone_rules=["No one at the bench"]
+    )
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock()
+    with (
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.ppe_compliance.get_provider", return_value=mock_provider),
+        patch("app.agents.ppe_compliance.get_context", return_value=ctx),
+        patch("app.agents.ppe_compliance.create_incident", new=AsyncMock()) as ci,
+    ):
+        await ppe_compliance.run("TEST-SERIAL", snap, trigger="t")
+
+    mock_provider.analyse_image.assert_not_awaited()
+    ci.assert_not_awaited()

@@ -36,6 +36,37 @@ def _vlm_parse_result(parsed: dict) -> vlm.VLMResult:
 # ---- pure helpers ---------------------------------------------------------
 
 
+def test_sanitise_zone_rules_keeps_wording_dedupes_and_caps():
+    parsed = {
+        "zone_rules": [
+            "  Nobody   near the Bench ",
+            "nobody near the bench",
+            "Left half is off limits",
+            "x" * 500,
+            "A fourth rule",
+            42,
+        ]
+    }
+    rules = mission_context._sanitise_zone_rules(parsed)
+    assert rules[0] == "Nobody near the Bench"
+    assert len(rules) == mission_context.MAX_ZONE_RULES
+    assert all(len(r) <= mission_context.MAX_RULE_CHARS for r in rules)
+
+
+def test_sanitise_zone_rules_tolerates_bad_shapes():
+    assert mission_context._sanitise_zone_rules({}) == []
+    assert mission_context._sanitise_zone_rules({"zone_rules": "nope"}) == []
+
+
+def test_old_persisted_blob_without_zone_rules_still_loads():
+    raw = (
+        '{"raw_input": "hat", "required_items": ["hard hat"], "context_note": "",'
+        ' "severity_hint": "high", "parsed_at": "", "model_id": "m"}'
+    )
+    ctx = mission_context.AgentContext.from_json(raw)
+    assert ctx.zone_rules == []
+
+
 def test_sanitise_parsed_clamps_items_and_lowercases():
     parsed = {
         "required_items": [
@@ -168,3 +199,20 @@ async def test_clear_context_removes_setting_and_publishes_event():
 def test_get_context_returns_none_when_blob_malformed():
     mission_context._write_setting("not-valid-json{")
     assert mission_context.get_context() is None
+
+
+async def test_set_context_accepts_zone_only_mission():
+    parsed = {
+        "required_items": [],
+        "zone_rules": ["Nobody near the bench"],
+        "context_note": "",
+        "severity_hint": "high",
+    }
+    mock_provider = MagicMock()
+    mock_provider.complete = AsyncMock(return_value=_vlm_parse_result(parsed))
+    with patch("app.services.mission_context.get_provider", return_value=mock_provider):
+        ctx = await mission_context.set_context("nobody near the bench")
+
+    assert ctx.required_items == []
+    assert ctx.zone_rules == ["Nobody near the bench"]
+    assert mission_context.get_context().zone_rules == ["Nobody near the bench"]

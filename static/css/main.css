@@ -254,6 +254,12 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 .mission-chip-sev-high   { color: #ff6b6b; }
 .mission-chip-sev-medium { color: #ffa94d; }
 .mission-chip-sev-low    { color: #ffd43b; }
+.mission-chip-zone {
+  color: #ff3c3c;
+  text-transform: none;
+  white-space: normal;
+  text-align: left;
+}
 .mission-chip-default {
   font-size: 0.78rem;
   padding: 0.3rem 0.6rem;

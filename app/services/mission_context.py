@@ -1,8 +1,9 @@
-"""Mission context — natural-language PPE requirements for the PPE agent.
+"""Mission context — natural-language PPE requirements and zone rules.
 
 The user (or an external agent) describes in plain English what PPE workers
-must wear; an LLM call parses that into a structured :class:`AgentContext`
-which is then injected into the PPE compliance agent's VLM prompt at run time.
+must wear and which areas are off limits; an LLM call parses that into a
+structured :class:`AgentContext`. The PPE agent injects the items into its VLM
+prompt, and the zone agent judges each zone rule directly on the frame.
 
 This is what makes danger_zone *agentic* rather than just a fancy YOLO wrapper:
 the detection target is set at run time in natural language. No code change,
@@ -11,8 +12,9 @@ no model retraining, no YAML edit — and the system adapts immediately.
 Scope is intentionally narrow:
 
 * Global (one active context for all cameras).
-* PPE compliance only — zone intrusion remains untouched.
-* Multi-item supported (capped at :data:`MAX_ITEMS`).
+* PPE items (capped at :data:`MAX_ITEMS`) and free-text zone rules (capped at
+  :data:`MAX_ZONE_RULES`). Zone rules are kept as the user's own wording — no
+  coordinates — and are judged by the VLM, so they work on any camera.
 
 State lives in a single :class:`~app.models.db.Setting` row under
 :data:`SETTING_KEY` as a JSON blob. ``set_context`` publishes
@@ -41,6 +43,8 @@ MAX_ITEMS = 5
 MAX_INPUT_CHARS = 500
 MAX_ITEM_CHARS = 60
 MAX_NOTE_CHARS = 120
+MAX_ZONE_RULES = 3
+MAX_RULE_CHARS = 140
 VALID_SEVERITIES = ("low", "medium", "high")
 
 
@@ -49,7 +53,7 @@ VALID_SEVERITIES = ("low", "medium", "high")
 
 @dataclass
 class AgentContext:
-    """Structured PPE requirements parsed from a natural-language instruction."""
+    """Structured PPE requirements and zone rules parsed from plain English."""
 
     raw_input: str
     required_items: list[str] = field(default_factory=list)
@@ -57,6 +61,7 @@ class AgentContext:
     severity_hint: str = "medium"
     parsed_at: str = ""
     model_id: str = ""
+    zone_rules: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
         return json.dumps(asdict(self))
@@ -75,17 +80,29 @@ class AgentContext:
 
 _SYSTEM_PROMPT = """\
 You are a workplace safety analyst. Extract the required Personal Protective
-Equipment (PPE) items from the user's instruction.
+Equipment (PPE) items and any zone rules from the user's instruction.
 
 Respond ONLY with a single JSON object of this exact shape:
 
 {
   "required_items": ["<item>", ...],
+  "zone_rules": ["<rule>", ...],
   "context_note": "<one short sentence, max 80 characters>",
   "severity_hint": "low" | "medium" | "high"
 }
 
-Rules:
+Zone rules:
+- A zone rule is a restriction on WHERE people may be or stand, e.g. "no one
+  within arm's reach of the bench" or "the left half of the room is off limits".
+- Write each rule as one short, self-contained sentence that a person looking
+  at a camera image could check. Keep the user's own spatial wording (names of
+  objects, "left of", "near", "behind"); never convert it to coordinates.
+- A rule that is about clothing or equipment is NOT a zone rule; put it in
+  required_items.
+- Maximum 3 zone rules. Use [] when the instruction mentions no restricted area.
+- If the instruction contains only zone rules, required_items may be [].
+
+PPE rules:
 - Each item in required_items must be a short, lowercase, visually-identifiable
   PPE item (e.g. "hard hat", "safety goggles", "safety glasses", "hi-vis vest",
   "steel-toe boots", "anti-static wrist strap", "respirator mask",
@@ -94,10 +111,12 @@ Rules:
   "safety goggles" must stay "safety goggles" (not "safety glasses"); goggles and
   glasses are visually distinct and the demo checks for goggles.
 - Maximum 5 items.
-- If the user describes a setting but names no specific items, infer the most
-  common PPE for that setting (e.g. electronics lab -> safety glasses,
-  anti-static wrist strap).
-- If the instruction is empty, irrelevant, or unsafe, return required_items: [].
+- If the user describes a work setting but names no specific items AND gives no
+  zone rules, infer the most common PPE for that setting (e.g. electronics lab
+  -> safety glasses, anti-static wrist strap). If the instruction contains zone
+  rules and no PPE, do NOT infer PPE; return required_items: [].
+- If the instruction is empty, irrelevant, or unsafe, return required_items: []
+  and zone_rules: [].
 - severity_hint: "high" for life-safety gear (hard hat, fall arrest, respirator),
   "medium" for standard PPE (glasses, gloves, vest), "low" for advisory only.
 """
@@ -136,6 +155,26 @@ def _sanitise_parsed(parsed: dict[str, Any]) -> tuple[list[str], str, str]:
         sev = "medium"
 
     return items, note, sev
+
+
+def _sanitise_zone_rules(parsed: dict[str, Any]) -> list[str]:
+    """Validate + clamp the zone rules, keeping the user's wording."""
+    raw = parsed.get("zone_rules", [])
+    if not isinstance(raw, list):
+        return []
+    rules: list[str] = []
+    seen: set[str] = set()
+    for entry in raw:
+        if not isinstance(entry, str):
+            continue
+        rule = " ".join(entry.split())[:MAX_RULE_CHARS]
+        key = rule.lower()
+        if rule and key not in seen:
+            seen.add(key)
+            rules.append(rule)
+        if len(rules) >= MAX_ZONE_RULES:
+            break
+    return rules
 
 
 # ---- persistence -----------------------------------------------------------
@@ -200,10 +239,12 @@ async def set_context(natural_language: str) -> AgentContext:
         raise VLMError(f"mission_context parse failed: {e}") from e
 
     items, note, sev = _sanitise_parsed(result.parsed)
-    if not items:
+    zone_rules = _sanitise_zone_rules(result.parsed)
+    if not items and not zone_rules:
         raise VLMError(
-            "Could not extract any PPE items from the instruction. "
-            "Try naming the items explicitly (e.g. 'safety glasses and gloves')."
+            "Could not extract any PPE items or zone rules from the instruction. "
+            "Try naming the items explicitly (e.g. 'safety glasses and gloves') "
+            "or describe an area (e.g. 'nobody near the bench')."
         )
 
     ctx = AgentContext(
@@ -213,6 +254,7 @@ async def set_context(natural_language: str) -> AgentContext:
         severity_hint=sev,
         parsed_at=datetime.utcnow().isoformat(),
         model_id=result.model_id,
+        zone_rules=zone_rules,
     )
     _write_setting(ctx.to_json())
 
@@ -221,11 +263,13 @@ async def set_context(natural_language: str) -> AgentContext:
         {"active": True, "context": ctx.as_dict()},
     )
     logger.info(
-        "mission_context: set %d item(s) via %s (%dms) — %s",
+        "mission_context: set %d item(s), %d zone rule(s) via %s (%dms) — %s | %s",
         len(items),
+        len(zone_rules),
         result.model_id,
         result.latency_ms,
         ", ".join(items),
+        "; ".join(zone_rules),
     )
     return ctx
 

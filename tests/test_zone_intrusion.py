@@ -175,3 +175,148 @@ async def test_passive_mode_skips_vlm_call(tmp_path):
     ):
         await zone_intrusion.run("TEST-SERIAL", snap, trigger="t")
     mock_provider.analyse_image.assert_not_awaited()
+
+
+# ---- natural-language zone rules ------------------------------------------
+
+
+def _rules_ctx(rules, items=None):
+    from app.services.mission_context import AgentContext
+
+    return AgentContext(
+        raw_input="keep off the bench",
+        required_items=items or [],
+        zone_rules=rules,
+        parsed_at="2026-11-06T00:00:00",
+        model_id="qwen3-vl-235b-awq",
+    )
+
+
+def _rules_vlm_result(entries):
+    return vlm.VLMResult(
+        raw="{}",
+        parsed={"people_visible": 2, "rules": entries},
+        model_id="qwen3-vl-235b-awq",
+        latency_ms=20,
+    )
+
+
+async def test_zone_rule_violation_files_incident_with_rule_text(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _rules_ctx(["Nobody near the bench", "Nobody in the doorway"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_rules_vlm_result(
+            [
+                {
+                    "rule_index": 1,
+                    "violated": True,
+                    "confidence": 0.9,
+                    "people_involved": 1,
+                    "reasoning": "person at the bench",
+                },
+                {"rule_index": 2, "violated": False, "confidence": 0.95},
+            ]
+        )
+    )
+    with (
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
+        patch("app.agents.zone_intrusion.get_context", return_value=ctx),
+        patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=7)
+        await zone_intrusion.run("TEST-SERIAL", snap, trigger="test")
+
+    ci.assert_awaited_once()
+    kwargs = ci.await_args.kwargs
+    assert kwargs["type"] == IncidentType.INTRUSION
+    assert kwargs["severity"].value == "CRITICAL"
+    assert "Nobody near the bench" in kwargs["summary"]
+    assert kwargs["extra"]["zone_rule"] == "Nobody near the bench"
+    # the VLM sees the clean frame and both rules, not a polygon overlay
+    prompt = mock_provider.analyse_image.await_args.args[1]
+    assert "1. Nobody near the bench" in prompt
+    assert "2. Nobody in the doorway" in prompt
+
+
+async def test_zone_rules_work_without_exclusion_polygon(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    cfg = _camera_cfg()
+    del cfg[0]["exclusion_zone"]
+    ctx = _rules_ctx(["Nobody near the bench"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_rules_vlm_result([{"rule_index": 1, "violated": True, "confidence": 0.7}])
+    )
+    with (
+        patch("app.services.config_loader.load_cameras", return_value=cfg),
+        patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
+        patch("app.agents.zone_intrusion.get_context", return_value=ctx),
+        patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=8)
+        await zone_intrusion.run("TEST-SERIAL", snap, trigger="test")
+
+    ci.assert_awaited_once()
+    assert ci.await_args.kwargs["severity"].value == "HIGH"
+
+
+async def test_zone_rule_low_confidence_or_unviolated_is_silent(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _rules_ctx(["Nobody near the bench", "Nobody in the doorway"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(
+        return_value=_rules_vlm_result(
+            [
+                {"rule_index": 1, "violated": True, "confidence": 0.3},
+                {"rule_index": 2, "violated": False, "confidence": 0.9},
+            ]
+        )
+    )
+    with (
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
+        patch("app.agents.zone_intrusion.get_context", return_value=ctx),
+        patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
+    ):
+        await zone_intrusion.run("TEST-SERIAL", snap, trigger="test")
+
+    ci.assert_not_awaited()
+
+
+def test_parse_rule_verdicts_handles_missing_and_malformed_entries():
+    rules = ["a", "b", "c"]
+    out = zone_intrusion._parse_rule_verdicts(
+        {
+            "rules": [
+                {"rule_index": "2", "violated": True, "confidence": "0.8"},
+                {"rule_index": 9, "violated": True, "confidence": 1},
+                "junk",
+                {"rule_index": 2, "violated": False, "confidence": 0.1},
+            ]
+        },
+        rules,
+    )
+    assert [v["rule"] for v in out] == rules
+    assert out[0]["violated"] is False
+    assert out[1]["violated"] is True and out[1]["confidence"] == 0.8
+    assert out[2]["confidence"] == 0.0
+
+
+async def test_no_zone_rules_still_uses_polygon_path(tmp_path):
+    snap = _write_snapshot(tmp_path)
+    ctx = _rules_ctx([], items=["hard hat"])
+    mock_provider = MagicMock()
+    mock_provider.analyse_image = AsyncMock(return_value=_vlm_result(True, 0.92))
+    with (
+        patch("app.services.config_loader.load_cameras", return_value=_camera_cfg()),
+        patch("app.agents.zone_intrusion.get_provider", return_value=mock_provider),
+        patch("app.agents.zone_intrusion.get_context", return_value=ctx),
+        patch("app.agents.zone_intrusion.create_incident", new=AsyncMock()) as ci,
+    ):
+        ci.return_value = MagicMock(id=9)
+        await zone_intrusion.run("TEST-SERIAL", snap, trigger="test")
+
+    ci.assert_awaited_once()
+    assert "RESTRICTED EXCLUSION ZONE" in mock_provider.analyse_image.await_args.args[1]

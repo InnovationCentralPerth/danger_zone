@@ -118,11 +118,13 @@ config/
   - otherwise (nobody in area, or low confidence) → silent (trace only, no incident)
 - INFO incidents do NOT bump the dashboard's red live-incident counter; rendered as muted grey cards. `NON_ALERT_SEVERITIES = {'INFO'}` in `static/js/main.js`.
 
-## Mission context (dynamic PPE requirements)
+## Mission context (dynamic PPE requirements and zone rules)
 - The **differentiator** vs YOLO-style detectors: detection target set at run time in natural language. No code change, no model retraining, no YAML edit.
 - A user (or external agent) describes the required PPE in plain English; one cheap text-only LLM call extracts a structured `AgentContext { required_items, context_note, severity_hint }` which is persisted in the `Setting` table under `mission_context.active` as a JSON blob.
 - Lives in `app/services/mission_context.py`; REST surface in `app/api/mission.py` (`/agents/context` GET/POST/DELETE).
-- **Scope intentionally narrow**: PPE compliance agent only (zone_intrusion untouched); one global context (not per-camera); 1–5 items per mission; max 500 chars of input.
+- **Scope intentionally narrow**: one global context (not per-camera); 1–5 PPE items and up to 3 natural-language `zone_rules` (140 chars each) per mission; max 500 chars of input. A mission needs at least one item or one zone rule.
+- **Natural-language zones**: `AgentContext.zone_rules` keeps the user's own wording (no coordinates). When rules exist, `zone_intrusion.run()` takes the `_run_rules` path: clean frame + numbered rules → VLM JSON `{people_visible, rules: [{rule_index, violated, confidence, people_involved, reasoning}]}` → one `INTRUSION` incident per rule with `violated && conf>=0.5` (CRITICAL ≥0.85 else HIGH; `extra.zone_rule` holds the rule). With no rules the legacy polygon path is unchanged. Works without an `exclusion_zone` in YAML. The prompt tells the model to ignore people on screens/posters.
+- A zone-only mission (no PPE items) makes `ppe_compliance` skip instead of falling back to the YAML default.
 - Flow when a snapshot arrives:
   1. `ppe_compliance.run()` calls `get_context()`.
   2. If a context exists → build multi-item VLM prompt with the parsed `required_items` + `context_note` injected; expect VLM JSON `{people_in_area, items_checked: [{item, missing_count, confidence}], overall_confidence, summary}`.

@@ -214,10 +214,29 @@ agents and the real VLM.
 3. Wait for the violation. Open the snapshot and the reasoning trace.
 4. Change to **Hard hat + vest** on the same footage. Show the verdict change.
 5. Change to **All three**. Show the goggles violation.
-6. Clear the mission. Show the YAML default.
-7. Optional: switch to the live cloud camera. Show the real timestamp.
-8. Close: local 235B VLM, frames never leave the network, detection target set
+6. Zones in plain English: click **Keep off the bench**, or type your own
+   ("nobody may be in the left half of the picture"). Show the red zone chip
+   and the incident reasoning. Then type a rule nobody breaks ("nobody at the far
+   right-hand end of the bench") and show it stay quiet.
+7. Clear the mission. Show the YAML default.
+8. Optional: switch to the live cloud camera. Show the real timestamp.
+9. Close: local 235B VLM, frames never leave the network, detection target set
    in plain English at run time.
+
+## Zone rules (natural language)
+
+A mission can mix PPE and zone rules in one sentence. The parser splits them;
+the zone agent gives the VLM the clean frame and the rule text and files one
+INTRUSION incident per violated rule. Zone-only missions silence the PPE agent.
+Rules are capped at 3 and 140 characters each. Judgement is by the VLM, so
+phrase rules around things visible in the picture ("near the bench", "left half
+of the picture"), not coordinates. Setting a new mission replaces the whole
+previous one (PPE and zones).
+
+Footage notes: `demo-area.mp4` is two Meraki dashboard exports joined and
+cropped to the picture (the export has a dark band on the right). The monitors
+in shot show the safety-sentry STOP/GO banner; the zone prompt tells the model
+to ignore people on screens.
 
 ## Honesty rules
 

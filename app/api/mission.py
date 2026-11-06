@@ -35,6 +35,7 @@ class AgentContextDTO(BaseModel):
     severity_hint: str
     parsed_at: str
     model_id: str
+    zone_rules: list[str] = Field(default_factory=list)
 
 
 class ContextStatusDTO(BaseModel):
@@ -48,9 +49,10 @@ class SetMissionRequest(BaseModel):
         min_length=1,
         max_length=mission_context.MAX_INPUT_CHARS,
         description=(
-            "Natural-language description of the PPE workers must wear. "
-            f"Up to {mission_context.MAX_INPUT_CHARS} characters; the LLM "
-            f"extracts up to {mission_context.MAX_ITEMS} items."
+            "Natural-language description of the PPE workers must wear and any "
+            f"areas that are off limits. Up to {mission_context.MAX_INPUT_CHARS} "
+            f"characters; the LLM extracts up to {mission_context.MAX_ITEMS} items "
+            f"and {mission_context.MAX_ZONE_RULES} zone rules."
         ),
     )
 

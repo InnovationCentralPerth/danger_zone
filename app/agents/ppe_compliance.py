@@ -234,6 +234,12 @@ async def run(serial: str, snapshot_path: str, trigger: str = "camera.snapshot")
 
     cfg = _camera_config(serial)
 
+    # A zone-only mission has no PPE requirement; do not fall back to the YAML default.
+    mission = get_context()
+    if mission is not None and not mission.required_items:
+        logger.debug("ppe_compliance: mission has no PPE items; skipping %s", serial)
+        return
+
     area = cfg.get("ppe_area")
     if not area or not area.get("polygon"):
         logger.debug("No ppe_area polygon for %s; skipping", serial)

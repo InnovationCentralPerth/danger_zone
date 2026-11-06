@@ -512,7 +512,11 @@ function renderMissionContext(state) {
   }
 
   const ctx = state.context;
-  statusLabel.textContent = `— active (${ctx.required_items.length} item${ctx.required_items.length === 1 ? '' : 's'})`;
+  const zoneRules = ctx.zone_rules || [];
+  const parts = [];
+  if (ctx.required_items.length) parts.push(`${ctx.required_items.length} PPE item${ctx.required_items.length === 1 ? '' : 's'}`);
+  if (zoneRules.length) parts.push(`${zoneRules.length} zone rule${zoneRules.length === 1 ? '' : 's'}`);
+  statusLabel.textContent = `— active (${parts.join(', ')})`;
   clearBtn.classList.remove('d-none');
   card?.classList.add('mission-card-active');
 
@@ -521,6 +525,12 @@ function renderMissionContext(state) {
     const chip = document.createElement('span');
     chip.className = `badge mission-chip ${sevClass}`;
     chip.textContent = item;
+    chips.appendChild(chip);
+  }
+  for (const rule of zoneRules) {
+    const chip = document.createElement('span');
+    chip.className = 'badge mission-chip mission-chip-zone';
+    chip.textContent = `⛔ ${rule}`;
     chips.appendChild(chip);
   }
 
