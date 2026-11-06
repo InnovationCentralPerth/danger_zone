@@ -76,9 +76,8 @@ async def test_dashboard_powered_by_strip_and_status_bar():
     assert "Powered by" in html
     assert 'src="/static/img/partners/meraki.png"' in html
     assert 'src="/static/img/partners/splunk.png"' in html
-    # No NIIN logo file yet -> plain product name, never a broken <img>.
-    assert "NIIN Sovereign Cloud" in html
-    assert "/static/img/partners/niin." not in html
+    assert 'src="/static/img/partners/niin.png"' in html
+    assert 'alt="NIIN Sovereign Cloud"' in html
     assert 'id="ops-clock-perth"' in html and 'id="ops-ai"' in html
     assert "Splunk LLC" in html  # required trademark attribution
 
