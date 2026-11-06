@@ -206,6 +206,7 @@ agents and the real VLM.
 - [ ] Laptop can reach the dashboard and MCP; `X-API-Key` works.
 - [ ] Synthetic profile starts.
 - [ ] Laptop fallback tested, or explicitly dropped from the plan.
+- [ ] Backup taken to the laptop (see *Backup and restore*) and the archive opens.
 
 ## Ten-minute demo click path
 
@@ -244,6 +245,34 @@ agents and the real VLM.
   analysed all the time; "All cameras" shows everything, with the camera name on
   each card. Say this out loud if someone asks why a tile that is not on screen
   has incidents.
+
+## Backup and restore (what git does not hold)
+
+Git has the code and the logos. It does **not** have the replay clips, the joined
+reels, `config/cameras*.yaml`, `.env` / `.meraki_key.env`, or the incident database.
+Those live only on the VM. Take a copy to your laptop before the expo.
+
+**From the laptop** (one line, ~215 MB, a few seconds; run it anywhere on the tailnet):
+
+```bash
+ssh marrabld@xenterm-wl180 'danger_zone/scripts/backup_demo_assets.sh -' > safety-sentry-backup-$(date +%F).tgz
+```
+
+Options go after the `-`: `--with-db` adds the incident database (+160 MB),
+`--no-secrets` leaves out `.env` and `.meraki_key.env`. Incident snapshots (several GB)
+are never included. **The default archive contains API keys: keep it on your laptop,
+never in git or a shared drive.**
+
+**Restore** (same VM, or a rebuilt one after `git clone` + `uv sync`):
+
+```bash
+scp safety-sentry-backup-*.tgz marrabld@xenterm-wl180:/tmp/
+ssh marrabld@xenterm-wl180 'cd danger_zone && scripts/restore_demo_assets.sh /tmp/safety-sentry-backup-*.tgz && sudo systemctl restart danger-zone.service'
+```
+
+The restore checks every file against the checksums stored in the archive and exits
+non-zero on any mismatch. Clips only, no keys: `rsync -avP
+marrabld@xenterm-wl180:/models/danger_zone/data/demo/ ~/safety-sentry-demo/`.
 
 ## Ask Safety Sentry
 
