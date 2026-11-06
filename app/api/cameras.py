@@ -107,6 +107,22 @@ async def trigger_snapshot(serial: str, analyse: bool = True) -> dict[str, str]:
     return {"status": "ok", "path": str(path)}
 
 
+def _is_full_frame(polygon: list) -> bool:
+    """True when the polygon's bounding box covers (almost) the whole frame.
+
+    These are the placeholder defaults for cameras with no custom zone; the
+    dashboard should not paint them over the picture.
+    """
+    try:
+        xs = [float(p[0]) for p in polygon]
+        ys = [float(p[1]) for p in polygon]
+    except (TypeError, ValueError, IndexError):
+        return False
+    if not xs or not ys:
+        return False
+    return (max(xs) - min(xs)) * (max(ys) - min(ys)) >= 0.98
+
+
 @router.get("/{serial}/zones", summary="Get monitored zones for a camera")
 async def get_camera_zones(serial: str) -> dict:
     """Return polygon definitions so the dashboard can draw an overlay.
@@ -133,6 +149,7 @@ async def get_camera_zones(serial: str) -> dict:
                 "polygon": excl["polygon"],
                 "colour": "#ff3c3c",
                 "kind": "intrusion",
+                "full_frame": _is_full_frame(excl["polygon"]),
             }
         )
     ppe = cam.get("ppe_area") or {}
@@ -145,6 +162,7 @@ async def get_camera_zones(serial: str) -> dict:
                 "colour": "#ffd200",
                 "kind": "ppe",
                 "required_item": ppe.get("required_item", "hard_hat"),
+                "full_frame": _is_full_frame(ppe["polygon"]),
             }
         )
     return {"serial": serial, "zones": zones}

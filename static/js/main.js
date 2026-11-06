@@ -212,6 +212,8 @@ async function loadZones() {
     overlay.innerHTML = '';
     legend.innerHTML = '';
     for (const z of (data.zones || [])) {
+      // Whole-frame zones are placeholders; drawing them just tints the picture.
+      if (z.full_frame) continue;
       const pts = (z.polygon || [])
         .map(([x, y]) => `${(x * 100).toFixed(2)},${(y * 100).toFixed(2)}`)
         .join(' ');

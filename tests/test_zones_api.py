@@ -80,3 +80,27 @@ def test_omits_missing_polygons():
     assert r.status_code == 200
     ids = {z["id"] for z in r.json()["zones"]}
     assert ids == {"ppe_area"}
+
+
+def test_full_frame_zones_are_flagged_and_real_polygons_are_not():
+    from app.api.cameras import _is_full_frame
+
+    assert _is_full_frame([[0, 0], [1, 0], [1, 1], [0, 1]])
+    assert not _is_full_frame([[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]])
+    assert not _is_full_frame([[0.0, 0.4], [0.5, 0.4], [0.5, 1.0], [0.0, 1.0]])
+    assert not _is_full_frame([])
+    assert not _is_full_frame([["a", "b"]])
+
+
+def test_default_zones_carry_full_frame_flag():
+    with patch("app.services.config_loader.load_cameras", return_value=_cfg()):
+        resp = TestClient(app).get("/cameras/NOT-IN-YAML/zones")
+    assert resp.status_code == 200
+    zones = resp.json()["zones"]
+    assert zones and all(z["full_frame"] for z in zones)
+
+
+def test_custom_polygon_is_not_flagged_full_frame():
+    with patch("app.services.config_loader.load_cameras", return_value=_cfg()):
+        zones = TestClient(app).get("/cameras/ZONE-CAM-1/zones").json()["zones"]
+    assert zones and not any(z["full_frame"] for z in zones)
