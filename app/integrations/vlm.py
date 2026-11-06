@@ -204,6 +204,7 @@ class ModelInfo:
     vision: bool
     max_tokens: int
     local: bool = False
+    card: str = ""  # exact model identity / provenance, shown on demand (gear menu, API)
 
 
 def list_models() -> list[ModelInfo]:
@@ -216,6 +217,7 @@ def list_models() -> list[ModelInfo]:
             vision=bool(m.get("vision", False)),
             max_tokens=int(m.get("max_tokens", 1024)),
             local=bool(m.get("local", False)),
+            card=str(m.get("card", "") or ""),
         )
         for m in cfg.get("models", [])
     ]

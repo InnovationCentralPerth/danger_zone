@@ -467,7 +467,8 @@ window.POSTER = __POSTER_JSON__;
   const NODES = [
     { k: 'cam', t: 'Meraki cameras', s: 'MV12W', d: 'The cameras you already own. Stills come through the Meraki cloud API; live video comes from the camera’s RTSP stream on the site network.' },
     { k: 'in', t: 'Video in', s: '~1 frame / s', d: 'Frames are sampled about once a second per camera. For demos, recorded footage can be replayed. It’s always badged REPLAY, and the analysis is still live.' },
-    { k: 'ai', t: 'Vision AI', s: 'on-site', d: 'Qwen3-VL 235B (22B active), 4-bit, on two H100 GPUs in NIIN Sovereign Cloud. No frame leaves the site; cloud AI is switched off by default.' },
+    { k: 'ai', t: 'Vision AI', s: 'on-site', d: 'An open-weight vision-language model (235B parameters, 22B active), compressed to 4-bit, running on two H100 GPUs in NIIN Sovereign Cloud. No frame leaves the site; cloud AI is switched off by default.',
+      card: 'Qwen3-VL-235B-A22B-Instruct · 4-bit AWQ · Alibaba Cloud · Apache-2.0 open weights · served locally with vLLM' },
     { k: 'ag', t: 'Mission agents', s: 'PPE · zones', d: 'Agents read the current plain-English mission and judge every frame against it: hard hats, vests, goggles, keep-out zones.' },
     { k: 'inc', t: 'Incidents', s: 'with evidence', d: 'Every finding is saved with the frame, confidence, the mission that produced it, and the moment in the footage.' },
     { k: 'ask', t: 'Ask', s: 'plain English', d: 'Questions about what it has seen. The model plans a query, code does the counting, the model words the answer, and every number is checked against the data.' },
@@ -488,7 +489,13 @@ window.POSTER = __POSTER_JSON__;
     function sel(i) {
       flow.querySelectorAll('.node').forEach((b, j) => b.classList.toggle('on', j === i));
       const n = NODES[i];
-      detail.innerHTML = `<h3>${n.t} ${n.next ? '<span class="pill warn" style="margin-left:.4rem">Next</span>' : ''}</h3><p style="font-size:1rem;color:#cfd6e4">${n.d}</p>`;
+      detail.innerHTML = `<h3>${n.t} ${n.next ? '<span class="pill warn" style="margin-left:.4rem">Next</span>' : ''}</h3><p style="font-size:1rem;color:#cfd6e4">${n.d}</p>
+        ${n.card ? '<button class="mchip" id="cardbtn" type="button" style="margin-top:.8rem">Model card ›</button><div class="rec" id="cardtxt" hidden style="font-size:.85rem;color:var(--text);margin-top:.6rem"></div>' : ''}`;
+      const btn = detail.querySelector('#cardbtn');
+      if (btn) btn.addEventListener('click', () => {
+        const box = detail.querySelector('#cardtxt'); box.textContent = n.card; box.hidden = !box.hidden;
+        btn.textContent = box.hidden ? 'Model card ›' : 'Model card ˅';
+      });
     }
     sel(2);
   } };

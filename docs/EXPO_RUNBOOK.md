@@ -258,6 +258,24 @@ change on the same frame), then **05 Ask it anything**. The LinkedIn QR is in **
 Everything on it is recorded from the live system; rebuild with
 `python poster/record_results.py && python poster/build_poster.py` (see `poster/README.md`).
 
+## "Which model is that?"
+
+On screen the model is described by what matters: **open weights, running on-site**
+(status bar, model picker, mission card, poster). The exact identity is one tap away
+and never hidden: gear menu → *Model card*, the poster's *Vision AI → Model card*
+button, the API (`GET /models/`), and the repo and docs name it plainly.
+
+If someone asks, answer in one calm sentence and don't hedge:
+
+> "It's Qwen3-VL 235B from Alibaba: open weights under Apache 2.0, running on our own
+> GPUs in NIIN Sovereign Cloud. The weights are a file of numbers; they can't make a
+> network connection, and the AI server has no route to the internet."
+
+Only say the last clause once the egress check has been run and the server hardened
+(see *Data leaving the building* below). Do not claim anything about the model's
+origin that isn't true, and do not deflect. Open weights are the point, and a calm,
+direct answer is the best response to the concern.
+
 ## Backup and restore (what git does not hold)
 
 Git has the code and the logos. It does **not** have the replay clips, the joined

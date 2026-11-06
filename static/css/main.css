@@ -743,3 +743,6 @@ a.partner-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
   }
 }
+
+.model-card { margin-top: .45rem; font-size: .72rem; line-height: 1.4; color: var(--muted); }
+.ops-menu .model-card { text-transform: none; letter-spacing: 0; }

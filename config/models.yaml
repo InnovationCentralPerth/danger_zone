@@ -13,7 +13,10 @@ default: "qwen3-vl-235b-awq"
 models:
   # ---- local (self-hosted vLLM) -------------------------------------------
   - id: "qwen3-vl-235b-awq"
-    label: "Qwen3-VL 235B A22B AWQ (local, 2×H100)"
+    # `label` is what the dashboard shows (neutral: what matters is open weights, on-site).
+    # `card` is the exact identity, shown in the gear menu and the API. Never hidden.
+    label: "Open-weight VLM · 235B (local, 2×H100)"
+    card: "Qwen3-VL-235B-A22B-Instruct · 4-bit AWQ · Alibaba Cloud · Apache-2.0 open weights · served locally with vLLM"
     vision: true
     max_tokens: 2048
     local: true

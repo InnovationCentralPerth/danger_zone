@@ -700,7 +700,7 @@ function renderMissionContext(state) {
 
   const parsed = ctx.parsed_at ? new Date(ctx.parsed_at + 'Z').toLocaleString() : '';
   const bits = [];
-  if (ctx.model_id) bits.push(`parsed by <code>${escapeHtml(ctx.model_id)}</code>`);
+  if (ctx.model_id) bits.push('parsed by the on-site model');
   if (parsed) bits.push(parsed);
   if (ctx.severity_hint) bits.push(`severity: ${escapeHtml(ctx.severity_hint)}`);
   meta.innerHTML = bits.join(' · ');
@@ -778,6 +778,16 @@ evtSource.addEventListener('mission_context_changed', (e) => {
 
 // ---- model picker ---------------------------------------------------------
 
+// Exact model identity (the "model card") by model id; the picker itself shows a neutral label.
+const modelCards = new Map();
+function showModelCard() {
+  const sel = document.getElementById('model-select');
+  const el = document.getElementById('model-card');
+  if (!sel || !el) return;
+  const card = modelCards.get(sel.value) || '';
+  el.textContent = card ? `Model card: ${card}` : '';
+}
+
 async function loadModels() {
   const sel = document.getElementById('model-select');
   try {
@@ -788,13 +798,16 @@ async function loadModels() {
     const models = await modelsR.json();
     const active = (await activeR.json()).id;
     sel.innerHTML = '';
+    modelCards.clear();
     for (const m of models) {
+      modelCards.set(m.id, m.card || '');
       const opt = document.createElement('option');
       opt.value = m.id;
       opt.textContent = `${m.label}${m.vision ? '' : ' (text)'}`;
       if (m.id === active) opt.selected = true;
       sel.appendChild(opt);
     }
+    showModelCard();
   } catch (e) {
     console.error('Failed to load models', e);
     sel.innerHTML = '<option value="">error</option>';
@@ -804,6 +817,7 @@ async function loadModels() {
 async function changeModel(e) {
   const id = e.target.value;
   if (!id) return;
+  showModelCard();
   try {
     await fetch('/models/active', {
       method: 'POST',

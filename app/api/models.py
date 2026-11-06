@@ -20,6 +20,7 @@ class ModelDTO(BaseModel):
     label: str
     vision: bool
     max_tokens: int
+    card: str = ""
 
 
 class ActiveModelDTO(BaseModel):
@@ -29,7 +30,7 @@ class ActiveModelDTO(BaseModel):
 @router.get("/", summary="List configured VLM models")
 async def get_models() -> list[ModelDTO]:
     return [
-        ModelDTO(id=m.id, label=m.label, vision=m.vision, max_tokens=m.max_tokens)
+        ModelDTO(id=m.id, label=m.label, vision=m.vision, max_tokens=m.max_tokens, card=m.card)
         for m in list_available_models()
     ]
 
