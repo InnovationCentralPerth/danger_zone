@@ -56,6 +56,109 @@ class FfmpegFrameSource:
         self.restart_delay = restart_delay
         self._closed = False
 
+        # Playback control (only used by seekable sources such as FileSource).
+        self.duration: float | None = None
+        self._start_offset = 0.0
+        self._proc: asyncio.subprocess.Process | None = None
+        self._proc_started: float | None = None
+        self._paused = False
+        self._pause_pos = 0.0
+        self._hold: bytes | None = None
+        self._hold_id = 0
+        self._refresh_hold = False
+        self._restart_now = False
+        self._wake: asyncio.Event | None = None
+
+    # ---- playback control ---------------------------------------------------
+
+    seekable = False
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
+    @property
+    def hold_id(self) -> int:
+        """Bumps each time a new frozen frame is produced while paused."""
+        return self._hold_id
+
+    def position(self) -> float:
+        """Current playback position in seconds (approximate while playing)."""
+        if self._paused:
+            return self._pause_pos
+        if self._proc_started is None:
+            return self._start_offset
+        elapsed = (time.monotonic() - self._proc_started) * max(self.speed, 0.0)
+        pos = self._start_offset + elapsed
+        return pos % self.duration if self.duration else pos
+
+    def seek(self, position: float) -> float:
+        """Jump to ``position`` seconds. Returns the clamped position."""
+        if not self.seekable:
+            raise RuntimeError("source is not seekable")
+        position = max(0.0, float(position))
+        if self.duration:
+            position = min(position, max(self.duration - 0.2, 0.0))
+        if self._paused:
+            self._pause_pos = position
+            self._refresh_hold = True
+        else:
+            self._start_offset = position
+            self._proc_started = None
+            self._restart_now = True
+            self._kill_current()
+        self._wake_up()
+        return position
+
+    def pause(self) -> None:
+        if not self.seekable or self._paused:
+            return
+        self._pause_pos = self.position()
+        self._paused = True
+        self._hold = None
+        self._refresh_hold = True
+        self._kill_current()
+        self._wake_up()
+
+    def resume(self) -> None:
+        if not self.seekable or not self._paused:
+            return
+        self._paused = False
+        self._start_offset = self._pause_pos
+        self._proc_started = None
+        self._hold = None
+        self._wake_up()
+
+    def _kill_current(self) -> None:
+        proc = self._proc
+        if proc is not None and proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.terminate()
+
+    def _wake_up(self) -> None:
+        if self._wake is not None:
+            self._wake.set()
+
+    async def _decode_one(self, position: float) -> bytes | None:
+        """Decode a single frame at ``position`` (used while paused)."""
+        cmd = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+            "-ss", f"{position:.3f}", "-i", self.uri, "-an",
+            "-vf", f"scale={self.width}:-2", "-frames:v", "1",
+            "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", str(self.jpeg_quality), "-",
+        ]  # fmt: skip
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=20.0)
+        except (TimeoutError, OSError):
+            return None
+        return out or None
+
     # ---- FrameSource protocol ---------------------------------------------
 
     def stream(self) -> AsyncIterator[Frame]:
@@ -73,6 +176,8 @@ class FfmpegFrameSource:
         if self.speed > 0:
             # -readrate paces input in real time (like -re) at a multiplier.
             cmd += ["-readrate", f"{self.speed:g}"]
+        if self._start_offset > 0:
+            cmd += ["-ss", f"{self._start_offset:.3f}"]
         cmd += self.extra_input_args
         cmd += [
             "-i",
@@ -93,18 +198,53 @@ class FfmpegFrameSource:
     async def _spawn(self) -> asyncio.subprocess.Process:
         cmd = self._build_command()
         logger.info("Starting ingest for %s: %s", self.camera_id, " ".join(cmd))
-        return await asyncio.create_subprocess_exec(
+        proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        self._proc = proc
+        # Playback position is anchored to the first decoded frame (see _stream),
+        # not process start, so a slow seek does not make the slider run ahead.
+        self._proc_started = None
+        return proc
 
     async def _stream(self) -> AsyncIterator[Frame]:
         seq = 0
         started = time.monotonic()
         delay = self.restart_delay
+        self._wake = asyncio.Event()
         while not self._closed:
+            if self._paused:
+                if self._refresh_hold or self._hold is None:
+                    self._refresh_hold = False
+                    jpeg = await self._decode_one(self._pause_pos)
+                    if jpeg is not None and self._paused:
+                        self._hold = jpeg
+                        self._hold_id += 1
+                if self._hold is not None:
+                    try:
+                        width, height = jpeg_dimensions(self._hold)
+                    except ValueError:
+                        self._hold = None
+                    else:
+                        now = time.monotonic()
+                        yield Frame(
+                            camera_id=self.camera_id,
+                            seq=seq,
+                            source_ts=now - started,
+                            ingest_ts=now,
+                            width=width,
+                            height=height,
+                            jpeg=self._hold,
+                        )
+                        seq += 1
+                self._wake.clear()
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self._wake.wait(), timeout=0.5)
+                continue
+
             proc = await self._spawn()
             stderr_task = asyncio.create_task(self._drain_stderr(proc))
             try:
@@ -113,13 +253,19 @@ class FfmpegFrameSource:
                     return
                 parser = JpegStreamParser()
                 async for chunk in _read_chunks(stdout):
+                    if self._restart_now or self._paused:
+                        break  # seek/pause requested: drop frames from the old position
                     for jpeg in parser.feed(chunk):
+                        if self._restart_now or self._paused:
+                            break
                         try:
                             width, height = jpeg_dimensions(jpeg)
                         except ValueError:
                             logger.warning("Dropping malformed frame from %s", self.camera_id)
                             continue
                         now = time.monotonic()
+                        if self._proc_started is None:
+                            self._proc_started = now
                         yield Frame(
                             camera_id=self.camera_id,
                             seq=seq,
@@ -137,9 +283,13 @@ class FfmpegFrameSource:
                 with contextlib.suppress(asyncio.CancelledError):
                     await stderr_task
 
+            if self._restart_now or self._paused:
+                self._restart_now = False
+                continue
             if self._closed or not self.loop:
                 break
 
+            self._start_offset = 0.0
             logger.warning("Ingest stream for %s ended; restarting in %.1fs", self.camera_id, delay)
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30.0)

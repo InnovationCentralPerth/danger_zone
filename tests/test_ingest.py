@@ -250,3 +250,164 @@ async def test_manager_ignores_cameras_without_source(
         assert ingest_manager.status() == []
     finally:
         await ingest_manager.stop()
+
+
+# ---- replay scrubbing (seek / pause) --------------------------------------
+
+
+async def _make_clip(path: Path, seconds: int = 8) -> None:
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
+        "-i", f"testsrc=duration={seconds}:size=160x120:rate=10",
+        "-g", "5", "-pix_fmt", "yuv420p", str(path),
+    )  # fmt: skip
+    assert await proc.wait() == 0
+
+
+async def _take(src: FileSource, n: int, timeout: float = 20) -> list[Frame]:
+    frames: list[Frame] = []
+
+    async def collect() -> None:
+        async for frame in src.stream():
+            frames.append(frame)
+            if len(frames) == n:
+                return
+
+    await asyncio.wait_for(collect(), timeout=timeout)
+    return frames
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+async def test_file_source_reports_duration_and_is_seekable(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    await _make_clip(clip, 8)
+    src = FileSource("cam-seek", str(clip), fps=10, width=160)
+    assert src.seekable is True
+    assert src.duration == pytest.approx(8.0, abs=0.5)
+    assert src.position() == 0.0
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+async def test_seek_while_playing_jumps_position(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    await _make_clip(clip, 8)
+    src = FileSource("cam-seek", str(clip), fps=10, width=160, loop=True)
+    stream = src.stream()
+    first = [await asyncio.wait_for(anext(stream), 20) for _ in range(2)]
+    assert first and src.position() < 3
+
+    assert src.seek(6.0) == pytest.approx(6.0)
+    await asyncio.wait_for(anext(stream), 20)  # restarted ffmpeg produced a frame
+    assert 5.5 <= src.position() <= 8.0
+    await src.aclose()
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+async def test_pause_holds_one_frame_and_resume_continues(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    await _make_clip(clip, 8)
+    src = FileSource("cam-pause", str(clip), fps=10, width=160, loop=True)
+    stream = src.stream()
+    await asyncio.wait_for(anext(stream), 20)
+
+    src.seek(2.0)
+    src.pause()
+    assert src.paused
+    # A few already-buffered playing frames may arrive first; then the frozen frame repeats.
+    held: list[Frame] = []
+    for _ in range(12):
+        held.append(await asyncio.wait_for(anext(stream), 20))
+        if len(held) >= 2 and held[-1].jpeg == held[-2].jpeg and src.hold_id >= 1:
+            break
+    # Pause freezes the picture but keeps frames flowing so the MJPEG stream stays alive.
+    assert held[-1].jpeg == held[-2].jpeg
+    assert held[-1].seq > held[-2].seq
+    assert src.hold_id >= 1
+    pos = src.position()
+    assert pos == src.position()  # does not drift while paused
+
+    hold_id = src.hold_id
+    src.seek(5.0)  # scrub while paused -> a different frozen frame
+    for _ in range(6):
+        f = await asyncio.wait_for(anext(stream), 20)
+        if src.hold_id != hold_id:
+            break
+    assert src.hold_id == hold_id + 1
+    assert f.jpeg != held[-1].jpeg
+    assert src.position() == pytest.approx(5.0)
+
+    src.resume()
+    assert not src.paused
+    await asyncio.wait_for(anext(stream), 20)
+    assert src.position() >= 5.0
+    await src.aclose()
+
+
+def test_seek_is_clamped_and_synthetic_is_not_seekable(tmp_path):
+    synth = SyntheticSource("cam-synth")
+    assert getattr(synth, "seekable", False) is False
+
+
+def test_manager_playback_unknown_and_unsupported():
+    from app.ingest.manager import IngestManager
+
+    mgr = IngestManager()
+    assert mgr.playback("nope") is None
+    assert mgr.set_playback("nope", position=1.0) is None
+
+    class _NoSeek:
+        camera_id = "rtsp-cam"
+        seekable = False
+
+    mgr._sources["rtsp-cam"] = _NoSeek()  # type: ignore[assignment]
+    assert mgr.playback("rtsp-cam") == {"supported": False}
+    with pytest.raises(ValueError):
+        mgr.set_playback("rtsp-cam", position=1.0)
+
+
+def test_playback_api_roundtrip():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    class _Fake:
+        camera_id = "fake-cam"
+        seekable = True
+        duration = 100.0
+        paused = False
+
+        def __init__(self) -> None:
+            self.pos = 3.0
+
+        def position(self) -> float:
+            return self.pos
+
+        def seek(self, p: float) -> float:
+            self.pos = p
+            return p
+
+        def pause(self) -> None:
+            self.paused = True
+
+        def resume(self) -> None:
+            self.paused = False
+
+    fake = _Fake()
+    ingest_manager._sources["fake-cam"] = fake  # type: ignore[assignment]
+    try:
+        client = TestClient(app)
+        r = client.get("/cameras/fake-cam/playback")
+        assert r.json() == {"supported": True, "position": 3.0, "duration": 100.0, "paused": False}
+
+        r = client.post("/cameras/fake-cam/playback", json={"position": 42, "paused": True})
+        assert r.status_code == 200
+        assert r.json()["position"] == 42 and r.json()["paused"] is True
+
+        r = client.post("/cameras/fake-cam/playback", json={"paused": False})
+        assert r.json()["paused"] is False
+
+        assert client.post("/cameras/fake-cam/playback", json={"position": -1}).status_code == 422
+        assert client.post("/cameras/ghost/playback", json={"position": 1}).status_code == 404
+        assert client.get("/cameras/ghost/playback").json() == {"supported": False}
+    finally:
+        ingest_manager._sources.pop("fake-cam", None)

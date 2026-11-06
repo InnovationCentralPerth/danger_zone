@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
 
 from app.ingest.ffmpeg_source import FfmpegFrameSource
@@ -35,3 +37,22 @@ class FileSource(FfmpegFrameSource):
             loop=loop,
             speed=speed,
         )
+        self.duration = _probe_duration(self.uri)
+
+    seekable = True
+
+
+def _probe_duration(path: str) -> float | None:
+    """Clip length in seconds via ffprobe, or None if it can't be read."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", path],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        ).stdout
+        value = float(json.loads(out)["format"]["duration"])
+    except (OSError, subprocess.SubprocessError, KeyError, ValueError):
+        return None
+    return value if value > 0 else None

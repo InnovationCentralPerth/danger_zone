@@ -223,6 +223,18 @@ agents and the real VLM.
 9. Close: local 235B VLM, frames never leave the network, detection target set
    in plain English at run time.
 
+## Scrubbing and the incident scope
+
+- Replay tiles have a pause button and a slider. Drag to jump; a seek shows the
+  new picture in ~3 s while playing, faster while paused. **Pause on a violation**
+  and the AI analyses that frozen frame once, so you can talk through it without
+  the feed filling with duplicates. Scrub while paused to find the moment, then
+  press play.
+- The incident and reasoning feeds default to **This camera**. All cameras are
+  analysed all the time; "All cameras" shows everything, with the camera name on
+  each card. Say this out loud if someone asks why a tile that is not on screen
+  has incidents.
+
 ## Zone rules (natural language)
 
 A mission can mix PPE and zone rules in one sentence. The parser splits them;

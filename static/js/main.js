@@ -199,6 +199,90 @@ function selectCamera(serial) {
   refreshSnapshot();
   loadZones();
   loadWatcherState();
+  applyScope();
+  setupPlayback();
+}
+
+// ---- replay scrubbing ------------------------------------------------------
+
+let playbackTimer = null;
+let playbackDragging = false;
+let playbackState = null;
+
+function fmtClock(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+function renderPlayback(state) {
+  const bar = document.getElementById('playback-bar');
+  if (!bar) return;
+  if (!state || !state.supported || !state.duration) {
+    bar.classList.add('d-none');
+    playbackState = null;
+    return;
+  }
+  playbackState = state;
+  bar.classList.remove('d-none');
+  const slider = document.getElementById('playback-slider');
+  slider.max = state.duration;
+  if (!playbackDragging) slider.value = state.position;
+  document.getElementById('playback-toggle').textContent = state.paused ? '▶' : '⏸';
+  document.getElementById('playback-time').textContent =
+    `${fmtClock(playbackDragging ? slider.value : state.position)} / ${fmtClock(state.duration)}`;
+}
+
+async function pollPlayback() {
+  if (!cameraSerial || playbackDragging) return;
+  const serial = cameraSerial;
+  try {
+    const r = await fetch(`/cameras/${serial}/playback`);
+    if (r.ok && serial === cameraSerial) renderPlayback(await r.json());
+  } catch (e) { /* transient; next tick retries */ }
+}
+
+async function sendPlayback(body) {
+  if (!cameraSerial) return;
+  try {
+    const r = await fetch(`/cameras/${cameraSerial}/playback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) renderPlayback(await r.json());
+  } catch (e) { console.error('Playback request failed', e); }
+}
+
+function setupPlayback() {
+  clearInterval(playbackTimer);
+  playbackTimer = null;
+  playbackDragging = false;
+  renderPlayback(null);
+  const meta = cameraMeta.get(cameraSerial);
+  if (!meta || String(meta.sourceType || '').toLowerCase() !== 'file') return;
+  pollPlayback();
+  playbackTimer = setInterval(pollPlayback, 1000);
+}
+
+function initPlaybackControls() {
+  const slider = document.getElementById('playback-slider');
+  const toggle = document.getElementById('playback-toggle');
+  if (!slider || !toggle) return;
+  slider.addEventListener('input', () => {
+    playbackDragging = true;
+    document.getElementById('playback-time').textContent =
+      `${fmtClock(slider.value)} / ${fmtClock(playbackState?.duration)}`;
+  });
+  slider.addEventListener('change', async () => {
+    await sendPlayback({ position: parseFloat(slider.value) });
+    playbackDragging = false;
+  });
+  toggle.addEventListener('click', () => {
+    sendPlayback({ paused: !(playbackState && playbackState.paused) });
+  });
+  document.getElementById('scope-camera')?.addEventListener('click', () => setScope('camera'));
+  document.getElementById('scope-all')?.addEventListener('click', () => setScope('all'));
+  applyScope();
 }
 
 async function loadZones() {
@@ -662,6 +746,38 @@ evtSource.addEventListener('camera_snapshot', (e) => {
 
 // ---- incident / heartbeat / trace -----------------------------------------
 
+function cameraLabel(serial) {
+  const meta = cameraMeta.get(serial);
+  return meta ? meta.label : serial;
+}
+
+// ---- incident / trace scope (this camera vs all cameras) -------------------
+
+let incidentScope = localStorage.getItem('dz.incidentScope') === 'all' ? 'all' : 'camera';
+
+function applyScope() {
+  let hidden = 0;
+  for (const el of document.querySelectorAll('#incident-list [data-camera-id], #trace-list [data-camera-id]')) {
+    const other = incidentScope === 'camera' && el.dataset.cameraId && cameraSerial
+      && el.dataset.cameraId !== cameraSerial;
+    el.classList.toggle('d-none', !!other);
+    if (other && el.closest('#incident-list')) hidden++;
+  }
+  document.getElementById('scope-camera')?.classList.toggle('active', incidentScope === 'camera');
+  document.getElementById('scope-all')?.classList.toggle('active', incidentScope === 'all');
+  const note = document.getElementById('incident-hidden-note');
+  if (note) {
+    note.textContent = hidden ? `${hidden} from other cameras hidden` : '';
+    note.classList.toggle('d-none', !hidden);
+  }
+}
+
+function setScope(scope) {
+  incidentScope = scope;
+  localStorage.setItem('dz.incidentScope', scope);
+  applyScope();
+}
+
 function renderIncidentCard(d) {
   const isAlert = !NON_ALERT_SEVERITIES.has(d.severity);
   const badge = severityBadge[d.severity] || 'secondary';
@@ -694,12 +810,12 @@ function renderIncidentCard(d) {
     : '';
 
   const metaTags = [
-    cameraId ? `<span class="incident-meta-tag">Camera ${escapeHtml(cameraId)}</span>` : '',
+    cameraId ? `<span class="incident-meta-tag camera-tag">${escapeHtml(cameraLabel(cameraId))}</span>` : '',
     clientMac ? `<span class="incident-meta-tag">MAC ${escapeHtml(clientMac)}</span>` : '',
   ].filter(Boolean).join('');
 
   return `
-    <div class="${cardClass}" data-incident-id="${d.id || ''}">
+    <div class="${cardClass}" data-incident-id="${d.id || ''}" data-camera-id="${escapeHtml(cameraId || '')}">
       <div class="incident-card-header">
         <div class="incident-card-header-left">
           <span class="badge bg-${badge}">${type}</span>
@@ -722,7 +838,7 @@ function renderIncidentCard(d) {
 
 async function loadIncidents() {
   try {
-    const r = await fetch('/incidents/?limit=20');
+    const r = await fetch('/incidents/?limit=60');
     if (!r.ok) return;
     const rows = await r.json();
     if (!Array.isArray(rows) || rows.length === 0) return;
@@ -736,6 +852,7 @@ async function loadIncidents() {
       host.insertAdjacentHTML('beforeend', renderIncidentCard(row));
     }
     document.getElementById('incident-count').textContent = incidentCount;
+    applyScope();
   } catch (e) {
     console.error('Failed to hydrate incidents', e);
   }
@@ -751,6 +868,7 @@ evtSource.addEventListener('incident_new', (e) => {
     document.getElementById('incident-count').textContent = incidentCount;
   }
   prependTo('incident-list', renderIncidentCard(d));
+  applyScope();
 
   // If incident has a snapshot, refresh the tile
   if (d.snapshot_path && cameraSerial && d.camera_id === cameraSerial) {
@@ -769,12 +887,14 @@ evtSource.addEventListener('agent_trace', (e) => {
   const d = JSON.parse(e.data);
   const ts = new Date(d.timestamp).toLocaleTimeString();
   prependTo('trace-list', `
-    <div class="trace-entry text-muted">
+    <div class="trace-entry text-muted" data-camera-id="${escapeHtml(d.serial || '')}">
+      ${d.serial ? `<span class="camera-tag me-1">${escapeHtml(cameraLabel(d.serial))}</span>` : ''}
       <span class="text-info fw-bold">${d.agent}</span>
       <span class="ms-1">${d.decision}</span>
       <small class="float-end">${ts} · ${d.latency_ms}ms</small>
     </div>
   `);
+  applyScope();
 });
 
 // Click-to-modal for incident thumbnails (event delegation — survives
@@ -797,3 +917,6 @@ evtSource.onerror = () => {
   document.getElementById('heartbeat-banner').className = 'alert alert-danger mb-0 py-2';
   document.getElementById('heartbeat-banner').textContent = 'Lost connection to agent stream — retrying…';
 };
+
+// Wire up replay scrubbing and incident-scope buttons once everything above is defined.
+initPlaybackControls();

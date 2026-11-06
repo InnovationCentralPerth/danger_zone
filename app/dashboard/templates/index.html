@@ -155,6 +155,13 @@
             <p class="text-muted mb-0">No snapshot yet. Click <em>Capture now</em>, flip on <em>Auto-capture</em>, or wait for a motion event.</p>
             <small class="text-secondary">Cameras discovered live from Meraki; override zones in <code>config/cameras.yaml</code></small>
           </div>
+          <div id="playback-bar" class="playback-bar d-none align-items-center gap-2 mt-2 px-2">
+            <button id="playback-toggle" type="button" class="btn btn-sm btn-outline-warning playback-btn"
+                    title="Pause / play">⏸</button>
+            <input id="playback-slider" type="range" min="0" max="100" step="0.5" value="0"
+                   class="form-range flex-grow-1" aria-label="Replay position">
+            <span id="playback-time" class="small text-muted playback-time">0:00 / 0:00</span>
+          </div>
           <div id="zone-legend" class="mt-2 small text-start ps-2 d-none"></div>
         </div>
       </div>
@@ -165,7 +172,14 @@
       <div class="card bg-black border-secondary">
         <div class="card-header d-flex justify-content-between align-items-center border-secondary">
           <span class="fw-bold">Live Incidents</span>
-          <span id="incident-count" class="badge bg-danger">0</span>
+          <span class="d-flex align-items-center gap-2">
+            <small id="incident-hidden-note" class="text-muted d-none"></small>
+            <span class="btn-group btn-group-sm" role="group" aria-label="Incident scope">
+              <button type="button" id="scope-camera" class="btn btn-outline-warning scope-btn">This camera</button>
+              <button type="button" id="scope-all" class="btn btn-outline-warning scope-btn">All cameras</button>
+            </span>
+            <span id="incident-count" class="badge bg-danger">0</span>
+          </span>
         </div>
         <div class="card-body p-0" style="max-height: 70vh; overflow-y: auto;">
           <div id="incident-list">

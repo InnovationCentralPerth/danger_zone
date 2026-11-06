@@ -331,3 +331,9 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
   .funder-logo          { height: 32px; }
   .funder-logo-cisco    { height: 26px; }
 }
+
+.playback-bar { display: flex; max-width: 100%; } /* .d-none (!important) hides it */
+.playback-btn { width: 2.2rem; line-height: 1; padding: 0.15rem 0; }
+.playback-time { min-width: 6.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.scope-btn.active { background: #ffc107; color: #000; }
+.camera-tag { color: #ffc107; font-weight: 600; }

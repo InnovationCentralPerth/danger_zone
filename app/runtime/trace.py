@@ -76,6 +76,7 @@ class AgentRun:
             {
                 "agent": self.agent,
                 "trigger": self.trigger,
+                "serial": self.inputs.get("serial"),
                 "decision": self.decision,
                 "latency_ms": elapsed_ms,
                 "incident_id": self.incident_id,

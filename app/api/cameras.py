@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.ingest.base import FrameRing
@@ -214,6 +214,34 @@ async def _mjpeg_frames(
         elif time.monotonic() - last_change > stale_seconds:
             return
         await asyncio.sleep(poll_seconds)
+
+
+class PlaybackRequest(BaseModel):
+    position: float | None = Field(default=None, ge=0, description="Seek to this many seconds")
+    paused: bool | None = Field(default=None, description="true to pause, false to resume")
+
+
+@router.get("/{serial}/playback", summary="Replay position and duration for a file camera")
+async def get_playback(serial: str) -> dict:
+    from app.ingest.manager import ingest_manager
+
+    state = ingest_manager.playback(serial)
+    if state is None:
+        return {"supported": False}
+    return state
+
+
+@router.post("/{serial}/playback", summary="Seek, pause or resume a replay camera")
+async def set_playback(serial: str, body: PlaybackRequest) -> dict:
+    from app.ingest.manager import ingest_manager
+
+    try:
+        state = ingest_manager.set_playback(serial, position=body.position, paused=body.paused)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"No ingest stream for {serial}")
+    return state
 
 
 @router.get(

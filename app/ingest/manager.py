@@ -179,6 +179,40 @@ class IngestManager:
             return None
         return self._persist(serial, frame)
 
+    def source(self, serial: str) -> FrameSource | None:
+        return self._sources.get(serial)
+
+    def playback(self, serial: str) -> dict[str, Any] | None:
+        """Playback state for a seekable (file) camera; None if not ingest-backed."""
+        src = self._sources.get(serial)
+        if src is None:
+            return None
+        if not getattr(src, "seekable", False):
+            return {"supported": False}
+        return {
+            "supported": True,
+            "position": round(float(src.position()), 2),  # type: ignore[attr-defined]
+            "duration": getattr(src, "duration", None),
+            "paused": bool(src.paused),  # type: ignore[attr-defined]
+        }
+
+    def set_playback(
+        self, serial: str, *, position: float | None = None, paused: bool | None = None
+    ) -> dict[str, Any] | None:
+        """Seek and/or pause/resume a file camera. None if the camera is unknown."""
+        src = self._sources.get(serial)
+        if src is None:
+            return None
+        if not getattr(src, "seekable", False):
+            raise ValueError(f"camera {serial} is not seekable")
+        if paused is True:
+            src.pause()  # type: ignore[attr-defined]
+        if position is not None:
+            src.seek(position)  # type: ignore[attr-defined]
+        if paused is False:
+            src.resume()  # type: ignore[attr-defined]
+        return self.playback(serial)
+
     def status(self) -> list[dict[str, Any]]:
         """Small snapshot for the dashboard / ops endpoints."""
         out: list[dict[str, Any]] = []
@@ -204,6 +238,7 @@ class IngestManager:
         ring = self._rings[serial]
         gate = RateGate(float(camera.get("vlm_fps", DEFAULT_VLM_FPS)))
         source_type = str((camera.get("source") or {}).get("type", "unknown"))
+        last_hold_id = -1
 
         try:
             async for frame in source.stream():
@@ -220,7 +255,13 @@ class IngestManager:
                         "ingest_ts": frame.ingest_ts,
                     },
                 )
-                if not gate.ready(frame.ingest_ts):
+                if getattr(source, "paused", False):
+                    # A frozen frame is analysed once per hold, not once per tick.
+                    hold_id = getattr(source, "hold_id", 0)
+                    if hold_id == last_hold_id:
+                        continue
+                    last_hold_id = hold_id
+                elif not gate.ready(frame.ingest_ts):
                     continue
                 path = await asyncio.to_thread(self._persist, serial, frame)
                 await bus.publish(
