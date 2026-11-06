@@ -84,6 +84,10 @@ def build_source(camera: dict[str, Any]) -> FrameSource:
     raise ValueError(f"camera {serial}: unsupported source type {kind!r}")
 
 
+def _loop_dir() -> Path:
+    return get_settings().data_dir / "loops"
+
+
 def _snapshot_path(serial: str) -> Path:
     settings = get_settings()
     ts = datetime.now(UTC)
@@ -108,6 +112,9 @@ class IngestManager:
         if self._started:
             return
         settings = get_settings()
+        for stale in _loop_dir().glob("*.mp4"):  # temp clips from a previous run
+            with contextlib.suppress(OSError):
+                stale.unlink()
         if not settings.ingest_enabled:
             logger.info("Ingest disabled (INGEST_ENABLED=false)")
             return
@@ -192,19 +199,35 @@ class IngestManager:
         return {
             "supported": True,
             "position": round(float(src.position()), 2),  # type: ignore[attr-defined]
-            "duration": getattr(src, "duration", None),
             "paused": bool(src.paused),  # type: ignore[attr-defined]
+            "loop": (
+                {"start": round(rng[0], 2), "end": round(rng[1], 2)}
+                if (rng := src.loop_range)  # type: ignore[attr-defined]
+                else None
+            ),
+            "duration": getattr(src, "_full_duration", None) or getattr(src, "duration", None),
         }
 
-    def set_playback(
-        self, serial: str, *, position: float | None = None, paused: bool | None = None
+    async def set_playback(
+        self,
+        serial: str,
+        *,
+        position: float | None = None,
+        paused: bool | None = None,
+        loop_start: float | None = None,
+        loop_end: float | None = None,
+        clear_loop: bool = False,
     ) -> dict[str, Any] | None:
-        """Seek and/or pause/resume a file camera. None if the camera is unknown."""
+        """Seek, pause/resume or loop a file camera. None if the camera is unknown."""
         src = self._sources.get(serial)
         if src is None:
             return None
         if not getattr(src, "seekable", False):
             raise ValueError(f"camera {serial} is not seekable")
+        if clear_loop:
+            src.clear_loop()  # type: ignore[attr-defined]
+        if loop_start is not None and loop_end is not None:
+            await src.set_loop(loop_start, loop_end, _loop_dir())  # type: ignore[attr-defined]
         if paused is True:
             src.pause()  # type: ignore[attr-defined]
         if position is not None:

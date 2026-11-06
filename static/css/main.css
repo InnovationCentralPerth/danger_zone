@@ -337,3 +337,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; }
 .playback-time { min-width: 6.5rem; text-align: right; font-variant-numeric: tabular-nums; }
 .scope-btn.active { background: #ffc107; color: #000; }
 .camera-tag { color: #ffc107; font-weight: 600; }
+.loop-band {
+  position: absolute; top: 50%; height: 10px; transform: translateY(-50%);
+  background: rgba(255, 193, 7, 0.55); border: 1px solid #ffc107; border-radius: 4px;
+  pointer-events: none;
+}

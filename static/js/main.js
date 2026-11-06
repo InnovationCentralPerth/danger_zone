@@ -208,6 +208,8 @@ function selectCamera(serial) {
 let playbackTimer = null;
 let playbackDragging = false;
 let playbackState = null;
+let pendingLoopA = null;
+let loopStatusShown = false;
 
 function fmtClock(sec) {
   sec = Math.max(0, Math.floor(sec || 0));
@@ -230,6 +232,34 @@ function renderPlayback(state) {
   document.getElementById('playback-toggle').textContent = state.paused ? '▶' : '⏸';
   document.getElementById('playback-time').textContent =
     `${fmtClock(playbackDragging ? slider.value : state.position)} / ${fmtClock(state.duration)}`;
+
+  const band = document.getElementById('loop-band');
+  const clearBtn = document.getElementById('loop-clear');
+  if (state.loop) {
+    const a = (state.loop.start / state.duration) * 100;
+    const b = (state.loop.end / state.duration) * 100;
+    band.style.left = `${a}%`;
+    band.style.width = `${Math.max(b - a, 0.5)}%`;
+    band.classList.remove('d-none');
+    clearBtn.classList.remove('d-none');
+    pendingLoopA = null;
+    loopStatusShown = true;
+    showLoopHint(`Looping ${fmtClock(state.loop.start)}–${fmtClock(state.loop.end)} — change the mission to re-judge this same moment.`);
+  } else {
+    band.classList.add('d-none');
+    clearBtn.classList.add('d-none');
+    if (loopStatusShown) {
+      loopStatusShown = false;
+      showLoopHint('');
+    }
+  }
+}
+
+function showLoopHint(text) {
+  const el = document.getElementById('loop-hint');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('d-none', !text);
 }
 
 async function pollPlayback() {
@@ -249,7 +279,13 @@ async function sendPlayback(body) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (r.ok) renderPlayback(await r.json());
+    if (r.ok) {
+      renderPlayback(await r.json());
+    } else {
+      let detail = `Request failed (${r.status})`;
+      try { detail = (await r.json()).detail || detail; } catch (e) { /* keep default */ }
+      showLoopHint(String(detail));
+    }
   } catch (e) { console.error('Playback request failed', e); }
 }
 
@@ -257,6 +293,8 @@ function setupPlayback() {
   clearInterval(playbackTimer);
   playbackTimer = null;
   playbackDragging = false;
+  pendingLoopA = null;
+  showLoopHint('');
   renderPlayback(null);
   const meta = cameraMeta.get(cameraSerial);
   if (!meta || String(meta.sourceType || '').toLowerCase() !== 'file') return;
@@ -279,6 +317,24 @@ function initPlaybackControls() {
   });
   toggle.addEventListener('click', () => {
     sendPlayback({ paused: !(playbackState && playbackState.paused) });
+  });
+  document.getElementById('loop-a')?.addEventListener('click', () => {
+    if (!playbackState) return;
+    pendingLoopA = playbackState.position;
+    showLoopHint(`Loop start set at ${fmtClock(pendingLoopA)} — play or scrub to the end, then press B.`);
+  });
+  document.getElementById('loop-b')?.addEventListener('click', () => {
+    if (!playbackState) return;
+    const end = playbackState.position;
+    let start = pendingLoopA !== null ? pendingLoopA : Math.max(0, end - 10);
+    let stop = end;
+    if (start > stop) [start, stop] = [stop, start];
+    pendingLoopA = null;
+    sendPlayback({ loop_start: start, loop_end: stop, paused: false });
+  });
+  document.getElementById('loop-clear')?.addEventListener('click', () => {
+    pendingLoopA = null;
+    sendPlayback({ clear_loop: true });
   });
   document.getElementById('scope-camera')?.addEventListener('click', () => setScope('camera'));
   document.getElementById('scope-all')?.addEventListener('click', () => setScope('all'));

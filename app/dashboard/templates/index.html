@@ -158,10 +158,20 @@
           <div id="playback-bar" class="playback-bar d-none align-items-center gap-2 mt-2 px-2">
             <button id="playback-toggle" type="button" class="btn btn-sm btn-outline-warning playback-btn"
                     title="Pause / play">⏸</button>
-            <input id="playback-slider" type="range" min="0" max="100" step="0.5" value="0"
-                   class="form-range flex-grow-1" aria-label="Replay position">
+            <button id="loop-a" type="button" class="btn btn-sm btn-outline-secondary playback-btn"
+                    title="Mark loop start at the current position">A</button>
+            <button id="loop-b" type="button" class="btn btn-sm btn-outline-secondary playback-btn"
+                    title="Mark loop end here and start looping (no A set: loops the last 10 s)">B</button>
+            <div class="position-relative flex-grow-1">
+              <input id="playback-slider" type="range" min="0" max="100" step="0.5" value="0"
+                     class="form-range w-100" aria-label="Replay position">
+              <div id="loop-band" class="loop-band d-none"></div>
+            </div>
             <span id="playback-time" class="small text-muted playback-time">0:00 / 0:00</span>
+            <button id="loop-clear" type="button" class="btn btn-sm btn-warning d-none"
+                    title="Stop looping and carry on">⟲ ✕</button>
           </div>
+          <div id="loop-hint" class="small text-warning mt-1 d-none"></div>
           <div id="zone-legend" class="mt-2 small text-start ps-2 d-none"></div>
         </div>
       </div>

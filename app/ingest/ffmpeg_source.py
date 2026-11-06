@@ -17,12 +17,22 @@ import contextlib
 import logging
 import time
 from collections.abc import AsyncIterator, Sequence
+from pathlib import Path
 
 from app.ingest.base import Frame, JpegStreamParser, jpeg_dimensions
 
 logger = logging.getLogger(__name__)
 
 _CHUNK_SIZE = 256 * 1024
+MIN_LOOP_SECONDS = 1.0
+MAX_LOOP_SECONDS = 180.0
+
+
+def _unlink(path: Path | None) -> None:
+    if path is None:
+        return
+    with contextlib.suppress(OSError):
+        path.unlink()
 
 
 class FfmpegFrameSource:
@@ -69,6 +79,14 @@ class FfmpegFrameSource:
         self._restart_now = False
         self._wake: asyncio.Event | None = None
 
+        # Section looping: while active, ``uri`` points at a short cut clip and
+        # ``_pos_base`` maps its local time back to whole-reel time.
+        self._full_uri = uri
+        self._full_duration: float | None = None
+        self._pos_base = 0.0
+        self._loop_range: tuple[float, float] | None = None
+        self._loop_clip: Path | None = None
+
     # ---- playback control ---------------------------------------------------
 
     seekable = False
@@ -82,8 +100,12 @@ class FfmpegFrameSource:
         """Bumps each time a new frozen frame is produced while paused."""
         return self._hold_id
 
-    def position(self) -> float:
-        """Current playback position in seconds (approximate while playing)."""
+    @property
+    def loop_range(self) -> tuple[float, float] | None:
+        """``(start, end)`` in whole-reel seconds while a section loop is active."""
+        return self._loop_range
+
+    def _local_position(self) -> float:
         if self._paused:
             return self._pause_pos
         if self._proc_started is None:
@@ -92,33 +114,130 @@ class FfmpegFrameSource:
         pos = self._start_offset + elapsed
         return pos % self.duration if self.duration else pos
 
+    def position(self) -> float:
+        """Current position in whole-reel seconds (approximate while playing)."""
+        return self._pos_base + self._local_position()
+
     def seek(self, position: float) -> float:
-        """Jump to ``position`` seconds. Returns the clamped position."""
+        """Jump to ``position`` (whole-reel seconds). Returns the clamped position.
+
+        Inside an active loop the seek stays in the loop; outside it ends the loop.
+        """
         if not self.seekable:
             raise RuntimeError("source is not seekable")
         position = max(0.0, float(position))
+        if self._loop_range is not None:
+            start, end = self._loop_range
+            if not (start <= position <= end):
+                self.clear_loop(resume_at=position)
+        local = position - self._pos_base
         if self.duration:
-            position = min(position, max(self.duration - 0.2, 0.0))
+            local = min(local, max(self.duration - 0.2, 0.0))
+        local = max(local, 0.0)
         if self._paused:
-            self._pause_pos = position
+            self._pause_pos = local
             self._refresh_hold = True
         else:
-            self._start_offset = position
+            self._start_offset = local
             self._proc_started = None
             self._restart_now = True
             self._kill_current()
         self._wake_up()
-        return position
+        return self._pos_base + local
 
     def pause(self) -> None:
         if not self.seekable or self._paused:
             return
-        self._pause_pos = self.position()
+        self._pause_pos = self._local_position()
         self._paused = True
         self._hold = None
         self._refresh_hold = True
         self._kill_current()
         self._wake_up()
+
+    async def set_loop(self, start: float, end: float, clip_dir: Path) -> tuple[float, float]:
+        """Loop the section ``[start, end]`` (whole-reel seconds) seamlessly.
+
+        ffmpeg cannot loop a sub-range of one file, so the section is cut into a
+        small temporary clip (fast: seconds of video, not the whole reel) and
+        that clip is looped instead.
+        """
+        if not self.seekable:
+            raise RuntimeError("source is not seekable")
+        full = self._full_duration
+        start = max(0.0, float(start))
+        end = float(end)
+        if full:
+            end = min(end, full)
+        if end - start < MIN_LOOP_SECONDS:
+            raise ValueError(f"loop must be at least {MIN_LOOP_SECONDS:g}s long")
+        if end - start > MAX_LOOP_SECONDS:
+            raise ValueError(f"loop must be at most {MAX_LOOP_SECONDS:g}s long")
+
+        clip_dir.mkdir(parents=True, exist_ok=True)
+        clip = clip_dir / f"{self.camera_id}_{int(time.time() * 1000)}.mp4"
+        await self._cut(start, end - start, clip)
+
+        old = self._loop_clip
+        self.uri = str(clip)
+        self.duration = end - start
+        self._pos_base = start
+        self._loop_range = (start, end)
+        self._loop_clip = clip
+        if self._paused:
+            self._pause_pos = 0.0
+            self._refresh_hold = True
+        else:
+            self._start_offset = 0.0
+            self._proc_started = None
+            self._restart_now = True
+            self._kill_current()
+        self._wake_up()
+        _unlink(old)
+        return start, end
+
+    def clear_loop(self, resume_at: float | None = None) -> None:
+        """Leave the loop and carry on from ``resume_at`` (default: where it is now)."""
+        if self._loop_range is None:
+            return
+        pos = self.position() if resume_at is None else float(resume_at)
+        old = self._loop_clip
+        self.uri = self._full_uri
+        self.duration = self._full_duration
+        self._pos_base = 0.0
+        self._loop_range = None
+        self._loop_clip = None
+        if self._paused:
+            self._pause_pos = pos
+            self._refresh_hold = True
+        else:
+            self._start_offset = pos
+            self._proc_started = None
+            self._restart_now = True
+            self._kill_current()
+        self._wake_up()
+        _unlink(old)
+
+    async def _cut(self, start: float, length: float, out: Path) -> None:
+        cmd = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+            "-ss", f"{start:.3f}", "-t", f"{length:.3f}", "-i", self._full_uri, "-an",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
+            "-g", "10", "-keyint_min", "10", "-sc_threshold", "0",
+            "-pix_fmt", "yuv420p", str(out),
+        ]  # fmt: skip
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdin=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
+        )
+        try:
+            _, err = await asyncio.wait_for(proc.communicate(), timeout=60.0)
+        except TimeoutError as e:
+            proc.kill()
+            raise RuntimeError("cutting the loop section timed out") from e
+        if proc.returncode != 0 or not out.is_file():
+            raise RuntimeError(
+                f"cutting the loop section failed: {err.decode(errors='replace')[:200]}"
+            )
 
     def resume(self) -> None:
         if not self.seekable or not self._paused:
@@ -171,7 +290,7 @@ class FfmpegFrameSource:
 
     def _build_command(self) -> list[str]:
         cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin"]
-        if self.loop:
+        if self.loop or self._loop_range is not None:
             cmd += ["-stream_loop", "-1"]
         if self.speed > 0:
             # -readrate paces input in real time (like -re) at a multiplier.

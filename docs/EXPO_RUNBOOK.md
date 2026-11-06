@@ -230,6 +230,12 @@ agents and the real VLM.
   and the AI analyses that frozen frame once, so you can talk through it without
   the feed filling with duplicates. Scrub while paused to find the moment, then
   press play.
+- **Loop a section to retask on the same moment.** Scrub to the start of the
+  situation, press **A**, play to the end, press **B**. (Press **B** alone to loop
+  the last 10 s.) The section repeats seamlessly with an amber band on the slider.
+  Now change the mission: the same footage is re-judged, so the verdict changes
+  because the mission changed, not the video. Press **⟲ ✕** to carry on.
+  Dragging the slider outside the loop ends it.
 - The incident and reasoning feeds default to **This camera**. All cameras are
   analysed all the time; "All cameras" shows everything, with the camera name on
   each card. Say this out loud if someone asks why a tile that is not on screen

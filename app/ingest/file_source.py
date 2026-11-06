@@ -38,6 +38,7 @@ class FileSource(FfmpegFrameSource):
             speed=speed,
         )
         self.duration = _probe_duration(self.uri)
+        self._full_duration = self.duration
 
     seekable = True
 

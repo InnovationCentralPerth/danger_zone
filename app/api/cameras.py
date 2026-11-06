@@ -219,6 +219,9 @@ async def _mjpeg_frames(
 class PlaybackRequest(BaseModel):
     position: float | None = Field(default=None, ge=0, description="Seek to this many seconds")
     paused: bool | None = Field(default=None, description="true to pause, false to resume")
+    loop_start: float | None = Field(default=None, ge=0, description="Loop section start (s)")
+    loop_end: float | None = Field(default=None, ge=0, description="Loop section end (s)")
+    clear_loop: bool = Field(default=False, description="true to leave a section loop")
 
 
 @router.get("/{serial}/playback", summary="Replay position and duration for a file camera")
@@ -235,10 +238,24 @@ async def get_playback(serial: str) -> dict:
 async def set_playback(serial: str, body: PlaybackRequest) -> dict:
     from app.ingest.manager import ingest_manager
 
+    if (body.loop_start is None) != (body.loop_end is None):
+        raise HTTPException(status_code=422, detail="loop_start and loop_end go together")
+    source = ingest_manager.source(serial)
+    if source is not None and getattr(source, "seekable", False) is False:
+        raise HTTPException(status_code=409, detail=f"camera {serial} is not seekable")
     try:
-        state = ingest_manager.set_playback(serial, position=body.position, paused=body.paused)
+        state = await ingest_manager.set_playback(
+            serial,
+            position=body.position,
+            paused=body.paused,
+            loop_start=body.loop_start,
+            loop_end=body.loop_end,
+            clear_loop=body.clear_loop,
+        )
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     if state is None:
         raise HTTPException(status_code=404, detail=f"No ingest stream for {serial}")
     return state

@@ -348,12 +348,12 @@ def test_seek_is_clamped_and_synthetic_is_not_seekable(tmp_path):
     assert getattr(synth, "seekable", False) is False
 
 
-def test_manager_playback_unknown_and_unsupported():
+async def test_manager_playback_unknown_and_unsupported():
     from app.ingest.manager import IngestManager
 
     mgr = IngestManager()
     assert mgr.playback("nope") is None
-    assert mgr.set_playback("nope", position=1.0) is None
+    assert await mgr.set_playback("nope", position=1.0) is None
 
     class _NoSeek:
         camera_id = "rtsp-cam"
@@ -362,7 +362,7 @@ def test_manager_playback_unknown_and_unsupported():
     mgr._sources["rtsp-cam"] = _NoSeek()  # type: ignore[assignment]
     assert mgr.playback("rtsp-cam") == {"supported": False}
     with pytest.raises(ValueError):
-        mgr.set_playback("rtsp-cam", position=1.0)
+        await mgr.set_playback("rtsp-cam", position=1.0)
 
 
 def test_playback_api_roundtrip():
@@ -375,6 +375,7 @@ def test_playback_api_roundtrip():
         seekable = True
         duration = 100.0
         paused = False
+        loop_range = None
 
         def __init__(self) -> None:
             self.pos = 3.0
@@ -397,7 +398,13 @@ def test_playback_api_roundtrip():
     try:
         client = TestClient(app)
         r = client.get("/cameras/fake-cam/playback")
-        assert r.json() == {"supported": True, "position": 3.0, "duration": 100.0, "paused": False}
+        assert r.json() == {
+            "supported": True,
+            "position": 3.0,
+            "duration": 100.0,
+            "paused": False,
+            "loop": None,
+        }
 
         r = client.post("/cameras/fake-cam/playback", json={"position": 42, "paused": True})
         assert r.status_code == 200
@@ -407,7 +414,67 @@ def test_playback_api_roundtrip():
         assert r.json()["paused"] is False
 
         assert client.post("/cameras/fake-cam/playback", json={"position": -1}).status_code == 422
+        assert client.post("/cameras/fake-cam/playback", json={"loop_start": 5}).status_code == 422
         assert client.post("/cameras/ghost/playback", json={"position": 1}).status_code == 404
         assert client.get("/cameras/ghost/playback").json() == {"supported": False}
     finally:
         ingest_manager._sources.pop("fake-cam", None)
+
+
+# ---- section looping ------------------------------------------------------
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+async def test_section_loop_stays_in_range_and_can_be_cleared(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    await _make_clip(clip, 12)
+    loops = tmp_path / "loops"
+    src = FileSource("cam-loop", str(clip), fps=10, width=160, loop=True)
+    stream = src.stream()
+    await asyncio.wait_for(anext(stream), 20)
+
+    assert await src.set_loop(4.0, 7.0, loops) == (4.0, 7.0)
+    assert src.loop_range == (4.0, 7.0)
+    assert len(list(loops.glob("*.mp4"))) == 1
+
+    # Play for longer than the loop is long: position must stay inside [4, 7].
+    seen = []
+    deadline = time.monotonic() + 7.5
+    while time.monotonic() < deadline:
+        await asyncio.wait_for(anext(stream), 20)
+        seen.append(src.position())
+    assert min(seen) >= 3.9 and max(seen) <= 7.1, (min(seen), max(seen))
+    assert max(seen) - min(seen) > 1.5  # it actually played, and wrapped, not frozen
+
+    # Seeking inside the loop keeps the loop; outside it leaves the loop.
+    src.seek(5.0)
+    assert src.loop_range == (4.0, 7.0)
+    assert src.position() == pytest.approx(5.0, abs=0.3)
+    src.seek(10.0)
+    assert src.loop_range is None
+    assert src.duration == pytest.approx(12.0, abs=0.5)
+    assert not list(loops.glob("*.mp4"))  # temp clip cleaned up
+    await asyncio.wait_for(anext(stream), 20)
+    assert 9.5 <= src.position() <= 12.0
+    await src.aclose()
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+async def test_section_loop_validation_and_clear(tmp_path, monkeypatch):
+    clip = tmp_path / "clip.mp4"
+    await _make_clip(clip, 12)
+    src = FileSource("cam-loop2", str(clip), fps=10, width=160, loop=True)
+    with pytest.raises(ValueError):
+        await src.set_loop(5.0, 5.3, tmp_path / "l")  # too short
+    monkeypatch.setattr("app.ingest.ffmpeg_source.MAX_LOOP_SECONDS", 5.0)
+    with pytest.raises(ValueError):
+        await src.set_loop(0.0, 8.0, tmp_path / "l")  # too long
+    assert src.loop_range is None
+    monkeypatch.undo()
+
+    await src.set_loop(2.0, 5.0, tmp_path / "l")
+    src.clear_loop()
+    assert src.loop_range is None
+    assert src.duration == pytest.approx(12.0, abs=0.5)
+    assert src.position() >= 0
+    src.clear_loop()  # clearing twice is harmless
