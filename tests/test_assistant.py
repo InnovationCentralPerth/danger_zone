@@ -418,3 +418,40 @@ def test_plan_keyword_is_lowercased_and_optional():
     assert assistant.validate_plan({"intent": "count", "keyword": " Bench "}).keyword == "bench"
     assert assistant.validate_plan({"intent": "count", "keyword": "null"}).keyword is None
     assert assistant.validate_plan({"intent": "count"}).keyword is None
+
+
+def test_quoted_rule_text_does_not_trigger_the_contradiction_guard():
+    facts = {"events": 5, "window": {"label": "today"}}
+    ok = '5 zone breaches today, all for the rule "nobody may stand at or near the demo bench".'
+    assert assistant.answer_is_grounded(ok, facts)
+    assert assistant.answer_is_grounded(
+        "5 breaches of “no one may enter the walkway” today.", facts
+    )
+    assert not assistant.answer_is_grounded(
+        "Nobody went near the bench, but the rule was broken.", facts
+    )
+
+
+def test_status_without_a_mission_reports_the_site_default():
+    f = _facts(assistant.QueryPlan(intent="status"), None)
+    assert f["current_items"] == [] and f["site_default_check"] == "hard hat"
+    assert (
+        assistant.template_answer(f) == "Right now I'm watching for: the site default (hard hat)."
+    )
+    with_mission = _facts(assistant.QueryPlan(intent="status"), _ctx(["hi-vis vest"]))
+    assert with_mission["site_default_check"] is None
+
+
+def test_window_has_a_natural_phrase_for_the_narrator():
+    today = _facts(assistant.QueryPlan(intent="count", window="today"), None)
+    assert today["window"]["phrase"] == "today"
+    mission = _facts(assistant.QueryPlan(intent="count"), _ctx(["hard hat"]))
+    assert mission["window"]["phrase"].startswith("since you set the current mission at")
+
+
+def test_polish_removes_the_awkward_today_window_phrase():
+    assert (
+        assistant.polish("I was not checking in the today window.") == "I was not checking today."
+    )
+    assert assistant.polish("Nothing during the today window") == "Nothing today"
+    assert assistant.polish("  fine as it is  ") == "fine as it is"

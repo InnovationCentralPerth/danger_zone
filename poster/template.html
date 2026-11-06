@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="theme-color" content="#070a10"/>
+<title>Safety Sentry — AI that watches for what you tell it to</title>
+<style>
+@font-face { font-family: 'Inter'; src: url(data:font/woff2;base64,__FONT_B64__) format('woff2'); font-weight: 100 900; font-display: swap; }
+
+:root {
+  --bg: #070a10; --panel: #0d121b; --panel2: #111826; --line: #1b2433; --line2: #2a3548;
+  --text: #e7ecf4; --muted: #8b95a8; --accent: #049fd9; --accent2: #38c6f4;
+  --ok: #2fd27f; --warn: #f5a524; --bad: #ff4d5e; --r: 16px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { font-size: calc(10px + 0.9vmin); }
+html, body { height: 100%; margin: 0; }
+body {
+  background: radial-gradient(1200px 520px at 70% -10%, #0e1726 0%, var(--bg) 62%) fixed;
+  color: var(--text); font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  display: flex; flex-direction: column; overflow: hidden; touch-action: manipulation;
+  -webkit-user-select: none; user-select: none; -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+h1, h2, h3, p { margin: 0; }
+
+/* ---- header ---- */
+.top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #0c121c, #090d15); flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 0.9rem; min-width: 0; }
+.tile-logo { display: inline-flex; align-items: center; justify-content: center; background: #fff; border-radius: 9px;
+  height: 2.9rem; padding: 0 0.8rem; box-shadow: 0 1px 8px rgba(0,0,0,.45); line-height: 0; }
+.tile-logo img { height: 2rem; width: auto; display: block; }
+.tile-logo img.l-meraki { height: 2.2rem; } .tile-logo img.l-splunk { height: 1.25rem; }
+.tile-logo img.l-niin { height: 2.3rem; } .tile-logo img.l-icp { height: 2rem; }
+.shield { width: 1.2rem; height: 1.85rem; flex: none; background: linear-gradient(180deg, #ff6b78, var(--bad));
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%); filter: drop-shadow(0 0 8px rgba(255,77,94,.55)); }
+.titles { display: flex; flex-direction: column; line-height: 1.12; min-width: 0; }
+.name { font-weight: 800; letter-spacing: .2em; font-size: 1.45rem; color: #fff; white-space: nowrap; }
+.tag { font-size: .8rem; color: var(--muted); letter-spacing: .02em; }
+.partners { display: flex; align-items: center; gap: .55rem; }
+.lbl { font-size: .62rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-right: .15rem; }
+
+/* ---- overview grid ---- */
+.grid { flex: 1 1 auto; min-height: 0; display: grid; gap: .8rem; padding: .85rem 1.1rem;
+  grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); }
+@media (orientation: portrait) { .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); } }
+.tile { position: relative; display: flex; flex-direction: column; text-align: left; min-height: 0; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: .9rem 1rem;
+  transition: transform .12s ease, border-color .15s ease, background .15s ease; }
+.tile:active { transform: scale(.975); border-color: var(--accent); }
+.tile.star { border-color: rgba(4,159,217,.65); box-shadow: 0 0 0 1px rgba(4,159,217,.2), 0 8px 30px rgba(4,159,217,.12); }
+.tile .num { font-size: .66rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+.tile .star-tag { color: var(--accent2); font-weight: 700; }
+.tile h2 { font-size: 1.12rem; line-height: 1.2; margin-top: .3rem; font-weight: 700; }
+.tile .viz { flex: 1 1 auto; min-height: 0; margin: .55rem 0; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.tile .one { font-size: .8rem; color: var(--muted); line-height: 1.35; }
+.tile .go { margin-top: .4rem; font-size: .72rem; color: var(--accent2); font-weight: 600; letter-spacing: .04em; }
+
+.viz-img { background: #000; position: relative; }
+.viz-img img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; display: block; }
+.viz-img .pill { position: absolute; left: .5rem; bottom: .5rem; }
+.pill { display: inline-block; padding: .22rem .65rem; border-radius: 999px; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.pill.bad { background: rgba(255,77,94,.18); color: #ff8a95; border: 1px solid rgba(255,77,94,.55); }
+.pill.ok { background: rgba(47,210,127,.15); color: var(--ok); border: 1px solid rgba(47,210,127,.5); }
+.pill.warn { background: rgba(245,165,36,.15); color: var(--warn); border: 1px solid rgba(245,165,36,.5); }
+.pill.blue { background: rgba(4,159,217,.16); color: var(--accent2); border: 1px solid rgba(4,159,217,.5); }
+.pill.mute { background: rgba(139,149,168,.12); color: var(--muted); border: 1px solid var(--line2); }
+
+.big { font-size: 2.6rem; font-weight: 800; color: #fff; letter-spacing: -.02em; line-height: 1; }
+.big small { font-size: .45em; font-weight: 600; color: var(--accent2); margin-left: .2rem; }
+.mini-chips { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; }
+.chip { display: inline-block; padding: .25rem .7rem; border-radius: 999px; font-size: .78rem; font-weight: 600;
+  background: var(--panel2); border: 1px solid var(--line2); color: var(--text); }
+.chip.zone { color: #ff9aa4; border-color: rgba(255,77,94,.45); }
+.chip.ppe { color: var(--accent2); border-color: rgba(4,159,217,.5); }
+
+/* ---- footer ---- */
+.legal { flex: none; padding: .3rem 1rem; text-align: center; font-size: .56rem; line-height: 1.35; color: #4b5468; border-top: 1px solid var(--line); background: #070a10; }
+
+/* ---- detail panel ---- */
+.panel { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex; flex-direction: column;
+  animation: pIn .18s ease-out; }
+.panel[hidden] { display: none; }
+@keyframes pIn { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+.phead { flex: none; display: flex; align-items: center; gap: .8rem; padding: .7rem 1.1rem; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #0c121c, #090d15); }
+.back { display: inline-flex; align-items: center; gap: .4rem; padding: .55rem 1rem; border-radius: 999px; background: var(--panel2);
+  border: 1px solid var(--line2); font-weight: 600; font-size: .9rem; }
+.back:active { background: var(--accent); }
+.phead .pt { font-size: 1.15rem; font-weight: 700; }
+.phead .ps { color: var(--muted); font-size: .82rem; margin-left: auto; text-align: right; }
+.pbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 1rem 1.3rem 1.4rem; display: flex; flex-direction: column; }
+.pc { margin-block: auto; width: 100%; }
+.lead { font-size: 1.75rem; font-weight: 700; line-height: 1.22; max-width: 52rem; }
+.sub { color: var(--muted); font-size: 1.1rem; line-height: 1.45; max-width: 52rem; margin-top: .55rem; }
+.cols { display: grid; gap: 1.2rem; grid-template-columns: 1.3fr 1fr; align-items: start; }
+.cols.even { grid-template-columns: 1fr 1.25fr; }
+@media (orientation: portrait) { .cols { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1.05rem 1.2rem; }
+.card h3 { font-size: 1.15rem; margin-bottom: .4rem; }
+.card p { color: var(--muted); font-size: 1rem; line-height: 1.5; }
+.card.sel { border-color: var(--accent); }
+.rec { font-size: .7rem; color: var(--muted); letter-spacing: .03em; margin-top: .6rem; }
+.rec b { color: var(--accent2); font-weight: 600; }
+
+/* problem */
+.prob { display: grid; gap: .9rem; grid-template-columns: repeat(3, 1fr); margin-top: 1.1rem; }
+@media (orientation: portrait) { .prob { grid-template-columns: 1fr; } }
+.prob .card .ico { font-size: 1.6rem; }
+.cams { display: grid; grid-template-columns: repeat(6, 1fr); gap: .4rem; margin: 1.2rem 0 .2rem; max-width: 40rem; }
+.cams div { aspect-ratio: 4/3; border-radius: 8px; background: #05080d; border: 1px solid var(--line2); position: relative; }
+.cams div::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 30% 35%, rgba(56,198,244,.15), transparent 60%); }
+.cams div::before { content: '●'; position: absolute; top: 5px; right: 7px; font-size: .5rem; color: var(--bad); animation: blink 2s infinite; z-index: 1; }
+@keyframes blink { 50% { opacity: .25; } }
+
+/* idea */
+.typer { background: #0a0f18; border: 1px solid var(--line2); border-radius: 12px; padding: 1rem 1.1rem; min-height: 5.6rem; font-size: 1.3rem; line-height: 1.4; }
+.caret::after { content: '▍'; color: var(--accent2); animation: blink 1s infinite; margin-left: 1px; }
+.eg { display: flex; flex-direction: column; gap: .5rem; margin: .9rem 0; }
+.eg button { text-align: left; padding: .85rem 1.1rem; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line2); font-size: 1.05rem; line-height: 1.35; }
+.eg button.on { border-color: var(--accent); background: rgba(4,159,217,.12); }
+.parsed { margin-top: 1rem; min-height: 7.5rem; }
+.parsed .chip { font-size: .95rem; padding: .35rem .85rem; }
+.parsed .row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: .4rem 0; }
+.parsed .k { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); min-width: 5.5rem; }
+.promise { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1.1rem; }
+
+/* hero */
+.moments { display: flex; gap: .6rem; margin-bottom: .7rem; }
+.moment { flex: 1 1 0; min-width: 0; padding: .4rem; border-radius: 12px; background: var(--panel); border: 2px solid var(--line); display: flex; gap: .6rem; align-items: center; text-align: left; }
+.moment img { width: 4.2rem; height: 3rem; object-fit: cover; border-radius: 7px; flex: none; }
+.moment span { font-size: .78rem; line-height: 1.25; color: var(--muted); }
+.moment.on { border-color: var(--accent); } .moment.on span { color: var(--text); }
+.stage { position: relative; background: #000; border-radius: 14px; overflow: hidden; border: 3px solid var(--line2); transition: border-color .25s ease; }
+.stage img { display: block; width: 100%; height: auto; max-height: calc(100vh - 13.8rem); object-fit: contain; margin: 0 auto; }
+@media (orientation: portrait) { .stage img { max-height: 46vh; } }
+.stage.bad { border-color: var(--bad); box-shadow: 0 0 28px rgba(255,77,94,.35); }
+.stage.ok { border-color: var(--ok); box-shadow: 0 0 28px rgba(47,210,127,.3); }
+.stage.warn { border-color: var(--warn); }
+.stage .zone-left { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: rgba(255,77,94,.22); border-right: 2px dashed var(--bad); pointer-events: none; }
+.stage .badge { position: absolute; left: .6rem; top: .6rem; }
+.chiprow { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin: .5rem 0; }
+.chiprow .k { font-size: .64rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); min-width: 3.4rem; }
+.mchip { padding: .62rem 1.1rem; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line2); font-weight: 600; font-size: 1rem; }
+.mchip.zone { color: #ff9aa4; border-color: rgba(255,77,94,.45); }
+.mchip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mchip.zone.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+.verdict { margin-top: .8rem; }
+.verdict .status { font-size: 2rem; font-weight: 800; letter-spacing: .01em; line-height: 1.1; }
+.verdict .status.bad { color: var(--bad); } .verdict .status.ok { color: var(--ok); } .verdict .status.warn { color: var(--warn); }
+.items { display: flex; flex-direction: column; gap: .35rem; margin: .7rem 0; }
+.item { display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .6rem .9rem; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); font-size: 1.05rem; }
+.item .res { font-weight: 700; } .item .res.bad { color: var(--bad); } .item .res.ok { color: var(--ok); }
+.quote { font-size: 1.08rem; line-height: 1.45; color: #cfd6e4; border-left: 3px solid var(--accent); padding-left: .8rem; margin: .7rem 0; font-style: italic; }
+
+/* how it works */
+.flow { display: flex; align-items: stretch; gap: .15rem; flex-wrap: wrap; }
+.node { flex: 1 1 0; min-width: 6.4rem; padding: .85rem .5rem; text-align: center; border-radius: 12px; background: var(--panel); border: 2px solid var(--line); font-weight: 600; font-size: .95rem; line-height: 1.25; position: relative; }
+.node small { display: block; font-weight: 400; color: var(--muted); font-size: .76rem; margin-top: .25rem; }
+.node.on { border-color: var(--accent); background: rgba(4,159,217,.12); }
+.node.next { border-style: dashed; border-color: var(--line2); color: var(--muted); }
+.node.next.on { border-color: var(--warn); }
+.arrow { align-self: center; color: var(--accent2); font-size: 1.1rem; flex: none; animation: nudge 1.6s infinite; }
+@keyframes nudge { 50% { transform: translateX(3px); opacity: .6; } }
+@media (orientation: portrait) { .flow { flex-direction: column; } .arrow { transform: rotate(90deg); animation: none; } .node { min-width: 0; } }
+.detail { min-height: 8rem; }
+.detail p { font-size: 1.15rem !important; line-height: 1.5; }
+.shot { width: 100%; border-radius: 12px; border: 1px solid var(--line2); display: block; }
+
+/* ask */
+.qs { display: flex; flex-direction: column; gap: .5rem; }
+.qs button { text-align: left; padding: .9rem 1.1rem; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line2); font-size: 1.08rem; font-weight: 600; }
+.qs button.on { border-color: var(--accent); background: rgba(4,159,217,.12); }
+.thread { min-height: 14rem; }
+.askcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 1.05rem 1.2rem; animation: pIn .25s ease-out; }
+.askcard .q { color: var(--muted); font-size: .76rem; margin-bottom: .35rem; }
+.askcard .a { font-size: 1.3rem; font-weight: 600; line-height: 1.4; color: #fff; }
+.dots span { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: var(--accent2); animation: dot 1.1s infinite; }
+.dots span:nth-child(2) { animation-delay: .15s; } .dots span:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%,80%,100% { opacity: .2; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+.evs { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .6rem; margin-top: .8rem; }
+.ev img { width: 100%; border-radius: 8px; border: 1px solid var(--line2); display: block; aspect-ratio: 3/2; object-fit: cover; }
+.ev div { font-size: .72rem; color: var(--muted); margin-top: .25rem; line-height: 1.3; }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin-top: 1rem; }
+@media (orientation: portrait) { .steps { grid-template-columns: 1fr; } }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .85rem .95rem; font-size: .95rem; line-height: 1.4; }
+.step b { display: block; color: var(--accent2); font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; margin-bottom: .2rem; }
+
+/* numbers / lessons */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .9rem; margin-top: 1.1rem; }
+@media (orientation: portrait) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; }
+.stat .big { font-size: 3rem; }
+.stat p { color: var(--muted); font-size: .98rem; margin-top: .45rem; line-height: 1.4; }
+.lessons { display: grid; grid-template-columns: repeat(2, 1fr); gap: .9rem; margin-top: 1.1rem; }
+@media (orientation: portrait) { .lessons { grid-template-columns: 1fr; } }
+.lessons .card h3 { color: #fff; }
+
+/* next */
+.road { display: grid; grid-template-columns: repeat(3, 1fr); gap: .9rem; margin-top: 1.1rem; }
+@media (orientation: portrait) { .road { grid-template-columns: 1fr; } }
+.road .card ul { margin: .5rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: 1.05rem; line-height: 1.55; }
+.road .card.now { border-color: rgba(47,210,127,.5); } .road .card.next { border-color: rgba(245,165,36,.5); }
+.contact { display: flex; align-items: center; gap: 1.2rem; margin-top: 1.2rem; flex-wrap: wrap; }
+.qr { width: 11rem; height: 11rem; background: #fff; border-radius: 12px; padding: .6rem; flex: none; }
+.qr svg { width: 100%; height: 100%; display: block; }
+.contact .words { flex: 1 1 14rem; }
+.contact .words b { font-size: 1.5rem; display: block; margin-bottom: .3rem; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="tile-logo"><img class="l-icp" alt="Innovation Central Perth" src="__LOGO_ICP__"/></span>
+    <span class="shield" aria-hidden="true"></span>
+    <span class="titles"><span class="name">SAFETY SENTRY</span><span class="tag">Tell your cameras what to look for.</span></span>
+  </div>
+  <div class="partners">
+    <span class="lbl">Powered by</span>
+    <span class="tile-logo"><img class="l-meraki" alt="Cisco Meraki" src="__LOGO_MERAKI__"/></span>
+    <span class="tile-logo"><img class="l-splunk" alt="Splunk" src="__LOGO_SPLUNK__"/></span>
+    <span class="tile-logo"><img class="l-niin" alt="National Industry Innovation Network" src="__LOGO_NIIN__"/></span>
+  </div>
+</header>
+
+<main class="grid" id="grid" aria-label="Poster sections"></main>
+
+<footer class="legal">
+  Splunk, Splunk&gt;, and Turn Data Into Doing are trademarks or registered trademarks of Splunk LLC in the United States and other countries.
+  Cisco and Meraki are trademarks of Cisco Systems, Inc. and/or its affiliates. All other brand names, product names, or trademarks belong to their respective owners.
+  Interactive results were recorded from the live system on <span id="recDate"></span>. Footage shown is replayed, not live.
+</footer>
+
+<section class="panel" id="panel" hidden aria-modal="true" role="dialog">
+  <div class="phead">
+    <button class="back" id="back" type="button">← Back to poster</button>
+    <span class="pt" id="ptitle"></span>
+    <span class="ps" id="psub"></span>
+  </div>
+  <div class="pbody" id="pbody"></div>
+</section>
+
+<script>
+window.POSTER = __POSTER_JSON__;
+</script>
+<script>
+(function () {
+  'use strict';
+  const P = window.POSTER;
+  const $ = (s, el) => (el || document).querySelector(s);
+  const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const secs = (ms) => (ms / 1000).toFixed(1);
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  $('#recDate').textContent = new Date(P.recorded_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const moment = (id) => P.moments.find((m) => m.id === id);
+  const heroMoment = moment('b') || P.moments[0];
+  const parseLat = Math.round(P.parses.reduce((a, p) => a + p.latency_ms, 0) / P.parses.length);
+  const lats = P.moments.flatMap((m) => m.missions.map((x) => x.latency_ms)).filter(Boolean).sort((a, b) => a - b);
+  const latMed = lats[Math.floor(lats.length / 2)] / 1000, latMin = lats[0] / 1000, latMax = lats[lats.length - 1] / 1000;
+  const askSecs = P.asks.map((a) => a.took_ms / 1000);
+  const askRange = `${Math.min(...askSecs).toFixed(1)}–${Math.max(...askSecs).toFixed(1)} s`;
+
+  /* ---------------- overview tiles ---------------- */
+  const TILES = [
+    { id: 'problem', n: 1, title: 'Cameras everywhere. Nobody watching.', one: 'Why site safety needs a new approach.',
+      viz: '<div class="mini-chips"><span class="chip">Rules change by site</span><span class="chip">…and by task</span><span class="chip">…and by day</span></div>' },
+    { id: 'idea', n: 2, title: 'Just tell it what to look for', one: 'Plain-English missions. No retraining.',
+      viz: '<div style="text-align:center"><div class="chip" style="font-style:italic;margin-bottom:.5rem">“Everyone must wear a hard hat and a vest.”</div><div class="mini-chips"><span class="chip ppe">hard hat</span><span class="chip ppe">hi-vis vest</span></div></div>' },
+    { id: 'hero', n: 3, star: true, title: 'Same moment, different mission', one: 'Tap a mission, watch the verdict change.',
+      viz: `<div class="viz-img" style="width:100%;height:100%"><img alt="" src="${heroMoment.imageData}"/><span class="pill warn">3 missions · 1 frame</span></div>` },
+    { id: 'how', n: 4, title: 'How it works', one: 'From Meraki camera to answer, on-site.',
+      viz: '<div class="mini-chips"><span class="chip">Meraki</span><span class="chip">→</span><span class="chip ppe">Vision AI</span><span class="chip">→</span><span class="chip">Agents</span><span class="chip">→</span><span class="chip">You</span></div>' },
+    { id: 'ask', n: 5, title: 'Ask it anything', one: 'Questions about what it has seen, answered from the record.',
+      viz: '<div style="width:100%"><div class="chip" style="display:block;margin-bottom:.4rem">Is anyone not wearing a respirator?</div><div class="chip ppe" style="display:block">I wasn’t checking for that. Want me to start?</div></div>' },
+    { id: 'numbers', n: 6, title: 'In numbers', one: 'Measured on the live system.',
+      viz: `<div class="big">~${latMed.toFixed(1)}<small>s per frame</small></div>` },
+    { id: 'lessons', n: 7, title: 'What we learned', one: 'Honest lessons from building it.',
+      viz: '<div class="big" style="font-size:2rem">4 <small>real surprises</small></div>' },
+    { id: 'next', n: 8, title: 'What’s next', one: 'Splunk, live video, and a way to reach us.',
+      viz: '<div class="mini-chips"><span class="pill ok">Now</span><span class="pill warn">Next · Splunk</span><span class="pill mute">Later</span></div>' },
+  ];
+  const grid = $('#grid');
+  TILES.forEach((t) => {
+    const el = h(`<button class="tile${t.star ? ' star' : ''}" type="button" data-id="${t.id}">
+      <div class="num"><span>${String(t.n).padStart(2, '0')}</span>${t.star ? '<span class="star-tag">★ Try this</span>' : ''}</div>
+      <h2>${t.title}</h2><div class="viz">${t.viz}</div><div class="one">${t.one}</div><div class="go">Tap to explore ›</div></button>`);
+    el.addEventListener('click', () => openPanel(t.id));
+    grid.appendChild(el);
+  });
+
+  /* ---------------- panel plumbing (Android Back works) ---------------- */
+  const panel = $('#panel'), pbody = $('#pbody');
+  let timers = [];
+  const clearTimers = () => { timers.forEach(clearTimeout); timers.forEach(clearInterval); timers = []; };
+  function openPanel(id, fromPop) {
+    const def = PANELS[id]; if (!def) return;
+    clearTimers();
+    $('#ptitle').textContent = def.title; $('#psub').textContent = def.sub || '';
+    pbody.innerHTML = ''; pbody.scrollTop = 0;
+    const pc = h('<div class="pc"></div>'); pbody.appendChild(pc);
+    def.render(pc);
+    panel.hidden = false;
+    if (!fromPop) history.pushState({ panel: id }, '');
+  }
+  function closePanel(fromPop) {
+    if (panel.hidden) return;
+    clearTimers(); panel.hidden = true;
+    if (!fromPop && history.state && history.state.panel) history.back();
+  }
+  $('#back').addEventListener('click', () => closePanel(false));
+  window.addEventListener('popstate', () => { if (!panel.hidden) closePanel(true); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(false); });
+  // Keep the tablet awake while presenting.
+  let wl = null;
+  document.addEventListener('pointerdown', async () => {
+    try { if ('wakeLock' in navigator && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } } catch (e) { /* not supported */ }
+  }, { once: false });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wl = null; });
+
+  /* ---------------- panels ---------------- */
+  const PANELS = {};
+
+  PANELS.problem = { title: 'The problem', sub: '01', render(el) {
+    el.innerHTML = `
+      <p class="lead">Every site has cameras. Almost no site has someone watching all of them.</p>
+      <p class="sub">And what counts as “unsafe” isn’t fixed. It depends on the site, the task and the day.</p>
+      <div class="cams">${'<div></div>'.repeat(12)}</div>
+      <div class="prob">
+        <div class="card"><div class="ico">👷</div><h3>Rules change</h3><p>A hard hat here, goggles there, a keep-out zone only while a crane is lifting.</p></div>
+        <div class="card"><div class="ico">🔧</div><h3>Fixed detectors don’t</h3><p>Traditional detection is trained for one rule. Changing the rule means new data, new training, new deployment.</p></div>
+        <div class="card"><div class="ico">👀</div><h3>People can’t watch everything</h3><p>The moment that matters is usually the one nobody was looking at.</p></div>
+      </div>`;
+  } };
+
+  PANELS.idea = { title: 'Just tell it what to look for', sub: '02', render(el) {
+    el.innerHTML = `
+      <div class="cols"><div>
+        <p class="lead">Describe the rule the way you would to a new colleague.</p>
+        <div class="eg" id="eg"></div>
+        <div class="typer" id="typer"><span style="color:var(--muted)">Tap an example…</span></div>
+        <div class="parsed" id="parsed"></div>
+      </div><div>
+        <div class="card"><h3>What happens next</h3><p>The on-site vision model reads the mission and judges every frame against it, starting with the next frame. No retraining, no code change, no restart.</p></div>
+        <div class="promise" style="margin-top:.9rem"><span class="pill blue">No retraining</span><span class="pill blue">No code</span><span class="pill blue">No restart</span></div>
+        <p class="rec">Parsed by the on-site model in about <b>${secs(parseLat)} s</b>. Recorded from the live system.</p>
+      </div></div>`;
+    const eg = $('#eg', el), typer = $('#typer', el), parsed = $('#parsed', el);
+    P.parses.forEach((p, i) => {
+      const b = h(`<button type="button">“${esc(p.text)}”</button>`);
+      b.addEventListener('click', () => play(i, b));
+      eg.appendChild(b);
+    });
+    function play(i, btn) {
+      clearTimers();
+      eg.querySelectorAll('button').forEach((x) => x.classList.remove('on')); btn.classList.add('on');
+      const p = P.parses[i]; parsed.innerHTML = ''; typer.innerHTML = '<span class="caret"></span>';
+      let n = 0;
+      const iv = setInterval(() => {
+        n += 2; typer.innerHTML = esc(p.text.slice(0, n)) + '<span class="caret"></span>';
+        if (n >= p.text.length) { clearInterval(iv); typer.textContent = p.text;
+          parsed.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
+          timers.push(setTimeout(() => {
+            const items = p.items.map((x) => `<span class="chip ppe">${esc(x)}</span>`).join('');
+            const zones = p.zone_rules.map((x) => `<span class="chip zone">⛔ ${esc(cap(x))}</span>`).join('');
+            parsed.innerHTML = `<div class="card sel">
+              ${items ? `<div class="row"><span class="k">PPE it checks</span>${items}</div>` : ''}
+              ${zones ? `<div class="row"><span class="k">Zones it enforces</span>${zones}</div>` : ''}
+              <div class="row"><span class="k">Understood in</span><b>${secs(p.latency_ms)} s</b></div></div>`;
+          }, 500));
+        }
+      }, 28);
+      timers.push(iv);
+    }
+    play(0, eg.firstChild);
+  } };
+
+  /* hero */
+  function verdictFor(m) {
+    if (m.kind === 'zone') return m.violated
+      ? { cls: 'bad', status: 'ZONE BREACH', pill: 'Zone breach', items: [] }
+      : { cls: 'ok', status: 'ALL CLEAR', pill: 'Zone clear', items: [] };
+    const checked = m.checked || [];
+    const missing = checked.filter((c) => c.missing > 0);
+    const items = checked.map((c) => ({ name: c.item, miss: c.missing }));
+    if (!m.people) return { cls: 'warn', status: 'NOBODY IN VIEW', pill: 'Nobody in view', items };
+    if (missing.length) return { cls: 'bad', status: 'VIOLATION', pill: 'Violation', items };
+    return { cls: 'ok', status: 'COMPLIANT', pill: 'Compliant', items };
+  }
+  PANELS.hero = { title: 'Same moment, different mission', sub: '03 · ★', render(el) {
+    let mom = heroMoment, cur = null;
+    el.innerHTML = `<div class="cols"><div>
+        <div class="moments" id="moments"></div>
+        <div class="stage" id="stage"><img id="himg" alt="Camera frame"/><div class="zone-left" id="zl" hidden></div>
+          <span class="pill mute badge">Recorded frame · replayed footage</span></div>
+      </div><div>
+        <div id="chips"></div>
+        <div class="verdict card" id="verdict"></div>
+      </div></div>`;
+    const moments = $('#moments', el), himg = $('#himg', el), stage = $('#stage', el), zl = $('#zl', el), chips = $('#chips', el), verdict = $('#verdict', el);
+    P.moments.forEach((m) => {
+      const b = h(`<button class="moment" type="button" data-id="${m.id}"><img alt="" src="${m.imageData}"/><span>${esc(m.title)}</span></button>`);
+      b.addEventListener('click', () => { mom = m; draw(true); });
+      moments.appendChild(b);
+    });
+    function draw(resetMission) {
+      moments.querySelectorAll('.moment').forEach((b) => b.classList.toggle('on', b.dataset.id === mom.id));
+      himg.src = mom.imageData;
+      const ppe = mom.missions.filter((x) => x.kind === 'ppe'), zones = mom.missions.filter((x) => x.kind === 'zone');
+      if (resetMission || !cur || !mom.missions.find((x) => x.id === cur.id)) cur = ppe.find((x) => x.id === 'all3') || ppe[0];
+      chips.innerHTML = '';
+      const row = (label, list, zone) => {
+        const r = h(`<div class="chiprow"><span class="k">${label}</span></div>`);
+        list.forEach((x) => { const c = h(`<button class="mchip${zone ? ' zone' : ''}${x.id === cur.id ? ' on' : ''}" type="button">${esc(x.label)}</button>`);
+          c.addEventListener('click', () => { cur = x; draw(false); }); r.appendChild(c); });
+        chips.appendChild(r);
+      };
+      row('PPE', ppe, false); row('Zones', zones, true);
+      const v = verdictFor(cur);
+      stage.className = 'stage ' + v.cls; zl.hidden = cur.id !== 'zone-left';
+      const itemsHtml = v.items.length ? `<div class="items">${v.items.map((i) => `<div class="item"><span>${esc(cap(i.name))}</span>
+        <span class="res ${i.miss ? 'bad' : 'ok'}">${i.miss ? '✗ missing × ' + i.miss : '✓ present'}</span></div>`).join('')}</div>` : '';
+      verdict.innerHTML = `<div class="status ${v.cls}">${v.status}</div>${itemsHtml}
+        <div class="quote">“${esc(cur.summary)}”</div>
+        <p class="rec">Judged by the on-site model in <b>${secs(cur.latency_ms)} s</b>. Recorded from the live system — same frame, different mission.</p>`;
+    }
+    draw(true);
+  } };
+
+  /* how it works */
+  const NODES = [
+    { k: 'cam', t: 'Meraki cameras', s: 'MV12W', d: 'The cameras you already own. Stills come through the Meraki cloud API; live video comes from the camera’s RTSP stream on the site network.' },
+    { k: 'in', t: 'Video in', s: '~1 frame / s', d: 'Frames are sampled about once a second per camera. For demos, recorded footage can be replayed. It’s always badged REPLAY, and the analysis is still live.' },
+    { k: 'ai', t: 'Vision AI', s: 'on-site', d: 'Qwen3-VL 235B (22B active), 4-bit, on two H100 GPUs in NIIN Sovereign Cloud. No frame leaves the site; cloud AI is switched off by default.' },
+    { k: 'ag', t: 'Mission agents', s: 'PPE · zones', d: 'Agents read the current plain-English mission and judge every frame against it: hard hats, vests, goggles, keep-out zones.' },
+    { k: 'inc', t: 'Incidents', s: 'with evidence', d: 'Every finding is saved with the frame, confidence, the mission that produced it, and the moment in the footage.' },
+    { k: 'ask', t: 'Ask', s: 'plain English', d: 'Questions about what it has seen. The model plans a query, code does the counting, the model words the answer, and every number is checked against the data.' },
+    { k: 'spl', t: 'Splunk', s: 'next', next: true, d: 'Next: stream every incident into Splunk for search, dashboards and alerting alongside the rest of the operation’s data.' },
+  ];
+  PANELS.how = { title: 'How it works', sub: '04', render(el) {
+    el.innerHTML = `<p class="lead">From the camera you already own, to an answer, without leaving the site.</p>
+      <div class="flow" id="flow" style="margin-top:1rem"></div>
+      <div class="cols even" style="margin-top:1.2rem"><div class="card detail" id="detail"></div>
+        <div><img class="shot" alt="The operator dashboard" src="${P.dashboard}"/><p class="rec">What the operator sees. <b>Real screenshot</b>, taken from the live system.</p></div></div>`;
+    const flow = $('#flow', el), detail = $('#detail', el);
+    NODES.forEach((n, i) => {
+      const b = h(`<button class="node${n.next ? ' next' : ''}" type="button">${n.t}<small>${n.s}</small></button>`);
+      b.addEventListener('click', () => sel(i));
+      flow.appendChild(b);
+      if (i < NODES.length - 1) flow.appendChild(h('<span class="arrow">➜</span>'));
+    });
+    function sel(i) {
+      flow.querySelectorAll('.node').forEach((b, j) => b.classList.toggle('on', j === i));
+      const n = NODES[i];
+      detail.innerHTML = `<h3>${n.t} ${n.next ? '<span class="pill warn" style="margin-left:.4rem">Next</span>' : ''}</h3><p style="font-size:1rem;color:#cfd6e4">${n.d}</p>`;
+    }
+    sel(2);
+  } };
+
+  /* ask */
+  PANELS.ask = { title: 'Ask it anything', sub: '05', render(el) {
+    el.innerHTML = `<div class="cols"><div>
+        <p class="lead">Questions about what it has seen, in plain English.</p>
+        <div class="qs" id="qs" style="margin-top:.9rem"></div>
+        <div class="steps">
+          <div class="step"><b>1 · The model plans</b>It turns your question into a structured query.</div>
+          <div class="step"><b>2 · Code counts</b>A database does the counting, never the AI.</div>
+          <div class="step"><b>3 · The model phrases</b>Any number the data doesn’t contain is thrown out.</div>
+        </div></div><div><div class="thread" id="thread"></div>
+        <p class="rec">Real answers, recorded from the live system. Answers took <b>${askRange}</b>.</p></div></div>`;
+    const qs = $('#qs', el), thread = $('#thread', el);
+    P.asks.forEach((a, i) => { const b = h(`<button type="button">${esc(a.question)}</button>`); b.addEventListener('click', () => ask(i)); qs.appendChild(b); });
+    function ask(i) {
+      clearTimers();
+      qs.querySelectorAll('button').forEach((b, j) => b.classList.toggle('on', j === i));
+      const a = P.asks[i];
+      thread.innerHTML = `<div class="askcard"><div class="q">You asked · ${esc(a.question)}</div><div class="a"><span class="dots"><span></span><span></span><span></span></span> Checking the record…</div></div>`;
+      timers.push(setTimeout(() => {
+        const evs = (a.evidence || []).filter((e) => e.thumbData).map((e) => `<div class="ev"><img alt="" src="${e.thumbData}"/><div><b style="color:var(--text)">${esc(e.time)}</b> · ${esc(e.camera.replace('REPLAY — ', ''))}</div></div>`).join('');
+        const act = (a.actions || []).map((x) => `<span class="pill blue">▶ ${esc(x.label)}</span>`).join(' ');
+        const f = a.facts || {};
+        thread.innerHTML = `<div class="askcard"><div class="q">You asked · ${esc(a.question)}</div><div class="a">${esc(a.answer)}</div>
+          ${evs ? `<div class="evs">${evs}</div>` : ''}
+          ${act ? `<div style="margin-top:.8rem">${act}<p class="rec">In the live system this button retasks the cameras.</p></div>` : ''}
+          <p class="rec">${typeof f.events === 'number' ? f.events + ' event' + (f.events === 1 ? '' : 's') + ' · ' : ''}answered in ${secs(a.took_ms)} s on-site</p></div>`;
+      }, 650));
+    }
+    ask(0);
+  } };
+
+  /* numbers */
+  PANELS.numbers = { title: 'In numbers', sub: '06', render(el) {
+    el.innerHTML = `<p class="lead">Measured on the live system, not estimated.</p>
+      <div class="stats">
+        <div class="stat"><div class="big">~${latMed.toFixed(1)}<small>s</small></div><p>for the on-site model to judge a frame against a mission (${latMin.toFixed(1)}–${latMax.toFixed(1)} s measured here, with three live cameras being analysed at the same time).</p></div>
+        <div class="stat"><div class="big">12<small>/ s</small></div><p>frames judged per second with 16 in flight, enough headroom for many cameras on one server.</p></div>
+        <div class="stat"><div class="big">235B</div><p>parameter vision-language model (22B active), compressed to 4-bit to fit.</p></div>
+        <div class="stat"><div class="big">2×<small>H100</small></div><p>GPUs in one server, hosted in NIIN Sovereign Cloud.</p></div>
+        <div class="stat"><div class="big">0</div><p>frames sent to an external AI service. Cloud models are switched off unless someone deliberately enables them.</p></div>
+        <div class="stat"><div class="big">${askRange.replace(' s', '')}<small>s</small></div><p>to answer a plain-English question about what it has seen.</p></div>
+      </div>
+      <p class="rec">Throughput and per-frame time from load tests on this system, Nov 2026. Question times from the recorded answers on this poster.</p>`;
+  } };
+
+  /* lessons */
+  PANELS.lessons = { title: 'What we learned', sub: '07', render(el) {
+    el.innerHTML = `<p class="lead">Four things that surprised us, and what we did about them.</p>
+      <div class="lessons">
+        <div class="card"><h3>1 · Cloud snapshots aren’t video</h3><p>The Meraki cloud API hands back a still roughly every 10 seconds. Real video needs the camera’s RTSP stream, which stays on the site’s own network.</p></div>
+        <div class="card"><h3>2 · So we built an honest replay mode</h3><p>Recorded footage plays on a loop and is always badged <b style="color:var(--warn)">REPLAY</b>. The footage is recorded; the analysis of every frame is live.</p></div>
+        <div class="card"><h3>3 · Distance limits detail</h3><p>Hard hats and vests read well across a room. Goggles need the person fairly close to the camera, so we don’t pretend otherwise.</p></div>
+        <div class="card"><h3>4 · The AI shouldn’t do the counting</h3><p>Early on the model would happily say “no one” beside a count of 35. Now a database counts, the model only words it, and unsupported numbers are discarded.</p></div>
+      </div>`;
+  } };
+
+  /* next */
+  PANELS.next = { title: 'What’s next', sub: '08', render(el) {
+    el.innerHTML = `<div class="road">
+        <div class="card now"><span class="pill ok">Now</span><ul>
+          <li>Plain-English missions and zones</li><li>On-site 235B vision AI</li><li>Meraki camera integration</li><li>Ask Safety Sentry</li></ul></div>
+        <div class="card next"><span class="pill warn">Next</span><ul>
+          <li><b style="color:#fff">Splunk:</b> every incident searchable and alertable</li><li>Live video from the lab over a camera relay</li></ul></div>
+        <div class="card"><span class="pill mute">Later</span><ul>
+          <li>Fast edge detector working with the agentic brain</li><li>Different missions per camera</li><li>Multi-site rollout</li></ul></div>
+      </div>
+      <div class="contact"><div class="qr">__QR_SVG__</div>
+        <div class="words"><b>Want this on your site?</b><p class="sub" style="margin-top:0">Find Innovation Central Perth on LinkedIn: scan the code, or ask us to show you the live system.</p>
+        <p class="sub">Innovation Central Perth is a partnership between Curtin University and Cisco.</p></div></div>`;
+  } };
+
+  // Restore a panel if the page was reloaded on one (history state) — otherwise start at the overview.
+  history.replaceState(null, '');
+})();
+</script>
+</body>
+</html>

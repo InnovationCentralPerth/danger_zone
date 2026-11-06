@@ -326,6 +326,7 @@ def build_facts(
         "current_mission": ctx.raw_input if ctx else None,
         "current_items": list(ctx.required_items) if ctx else [],
         "current_zone_rules": list(ctx.zone_rules) if ctx else [],
+        "site_default_check": None if ctx else "hard hat",
         "replay_footage": any((c.get("source") or {}).get("type") == "file" for c in cams),
     }
     if plan.intent in ("status", "retask", "unknown"):
@@ -388,7 +389,12 @@ def build_facts(
             "event_type": plan.event_type,
             "item": plan.item,
             "group_by": plan.group_by,
-            "window": {"label": label, "start": start.isoformat(), "end": end.isoformat()},
+            "window": {
+                "label": label,
+                "phrase": "today" if plan.window == "today" else label,
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+            },
             "events": len(events),
             "samples": len(rows),
             "by_camera": dict(sorted(by_camera.items(), key=lambda kv: -kv[1])),
@@ -437,7 +443,9 @@ def _watching_phrase(facts: dict[str, Any]) -> str:
     bits = list(facts.get("current_items") or []) + [
         f"“{r}”" for r in facts.get("current_zone_rules") or []
     ]
-    return ", ".join(bits) if bits else "the default hard-hat check"
+    if bits:
+        return ", ".join(bits)
+    return f"the site default ({facts.get('site_default_check') or 'hard hat'})"
 
 
 def template_answer(facts: dict[str, Any]) -> str:
@@ -494,13 +502,26 @@ Rules:
 - If facts.watching.checked_in_window is false and events is 0, say you were not checking for that item in that window and offer to start.
 - If facts.replay_footage is true, say it was replayed footage (never imply the video was live).
 - If facts.camera_not_found is set, say you could not find that camera.
+- "events" are occurrences, not people: say "events" (or "incidents"), never "people", unless a fact says people.
+- Refer to the time period with window.phrase, copied as-is (e.g. "today"); never write "the today window".
+- For intent "status", answer in ONE sentence.
 - If events is greater than 0, never say "no one", "nobody", "none" or "no violations".
+- If site_default_check is set and there are no current items or rules, say no mission is set so you are on the site default check for that item.
 - For zone questions, name the rule(s) in by_rule that were broken.
 - For intent "status", say what you are watching for (current_items and current_zone_rules); do not mention replay.
 """
 
 
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
+_TODAY_WINDOW_RE = re.compile(r"\b(?:in |during |within )?the today window\b", re.IGNORECASE)
+
+
+def polish(answer: str) -> str:
+    """Fix phrasings the model keeps producing that no customer would say."""
+    return _TODAY_WINDOW_RE.sub("today", answer).strip()
+
+
+_QUOTED_RE = re.compile(r"[“\"][^”\"]*[”\"]")
 _NEGATION_RE = re.compile(
     r"\b(no one|nobody|none|not a single|no (?:\w+ ){0,2}(?:violations?|breaches|incidents|alerts|events))\b",
     re.IGNORECASE,
@@ -514,7 +535,10 @@ def numbers_in(value: Any) -> set[str]:
 def answer_is_grounded(answer: str, facts: dict[str, Any]) -> bool:
     """Every number must exist in the facts, and "none" must not contradict a positive count."""
     events = facts.get("events")
-    if isinstance(events, int) and events > 0 and _NEGATION_RE.search(answer):
+    unquoted = _QUOTED_RE.sub(
+        " ", answer
+    )  # a quoted rule like "nobody may stand..." is not a claim
+    if isinstance(events, int) and events > 0 and _NEGATION_RE.search(unquoted):
         return False
     allowed = numbers_in({k: v for k, v in facts.items() if not k.startswith("_")})
     allowed |= {n.lstrip("0") or "0" for n in allowed}
@@ -573,7 +597,7 @@ async def ask(question: str, feed_cleared_after_id: int | None = None) -> dict[s
                 model_id=model,
                 max_tokens=160,
             )
-            candidate = str((narrated.parsed or {}).get("answer") or "").strip()
+            candidate = polish(str((narrated.parsed or {}).get("answer") or ""))
             if candidate and answer_is_grounded(candidate, facts):
                 answer, source = candidate, "llm"
             elif candidate:

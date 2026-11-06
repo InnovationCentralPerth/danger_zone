@@ -207,6 +207,7 @@ agents and the real VLM.
 - [ ] Synthetic profile starts.
 - [ ] Laptop fallback tested, or explicitly dropped from the plan.
 - [ ] Backup taken to the laptop (see *Backup and restore*) and the archive opens.
+- [ ] Poster file copied to the tablet and opens offline (both orientations).
 
 ## Ten-minute demo click path
 
@@ -245,6 +246,17 @@ agents and the real VLM.
   analysed all the time; "All cameras" shows everything, with the camera name on
   each card. Say this out loud if someone asks why a tile that is not on screen
   has incidents.
+
+## The poster on the tablet
+
+`poster/dist/safety-sentry-poster.html` is a standalone interactive poster (1 MB, works
+offline). Copy it to the tablet (USB, Nearby Share, Drive, or open
+`http://xenterm-wl180:8001/static/poster/safety-sentry-poster.html` on the tablet and save
+the page) and open it in Chrome or Fully Kiosk. Both orientations work. Tiles to lead
+with: **03 Same moment, different mission** (tap the mission chips and watch the verdict
+change on the same frame), then **05 Ask it anything**. The LinkedIn QR is in **08**.
+Everything on it is recorded from the live system; rebuild with
+`python poster/record_results.py && python poster/build_poster.py` (see `poster/README.md`).
 
 ## Backup and restore (what git does not hold)
 

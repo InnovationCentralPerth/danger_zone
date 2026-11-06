@@ -21,3 +21,7 @@ config/cameras.yaml
 config/cameras.*.yaml
 !config/cameras.*.example.yaml
 config/whitelist.yaml
+
+# interactive poster build output (reproducible: python poster/build_poster.py)
+poster/dist/
+static/poster/

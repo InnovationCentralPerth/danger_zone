@@ -60,3 +60,4 @@ packages = ["app"]
 [tool.ruff.lint.per-file-ignores]
 # Prompt text and few-shot JSON examples are long by nature.
 "app/services/assistant.py" = ["E501"]
+"poster/*.py" = ["E501"]
