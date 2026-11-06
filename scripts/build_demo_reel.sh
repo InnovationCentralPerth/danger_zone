@@ -4,7 +4,14 @@
 # Usage: scripts/build_demo_reel.sh [name] [crop]
 #   name  base name in data/demo (default: demo-area) -> demo-area-1.mp4, -2, ...
 #   crop  ffmpeg crop filter (default: crop=1256:1080:0:0, removes the dark band
-#         on the right of Meraki MV12W dashboard exports)
+#         on the right of Meraki MV12W Demo Area dashboard exports; use
+#         crop=1920:1080:0:0 for cameras without one)
+#
+# Optional trimming: data/demo/trims.txt, one segment per line:
+#     coffee-1.mp4 0 25
+#     coffee-1.mp4 100 208
+# A clip with trim lines contributes only those segments (seconds); a clip with
+# none is used whole. Use it to cut empty stretches out of the loop.
 #
 # Clips are re-encoded so mixed sources join cleanly. Originals are untouched.
 set -euo pipefail
@@ -12,6 +19,7 @@ set -euo pipefail
 DIR="${DEMO_DIR:-/models/danger_zone/data/demo}"
 NAME="${1:-demo-area}"
 CROP="${2:-crop=1256:1080:0:0}"
+TRIMS="$DIR/trims.txt"
 
 mapfile -t CLIPS < <(ls "$DIR"/"$NAME"-[0-9]*.mp4 2>/dev/null | sort -V)
 if [ "${#CLIPS[@]}" -eq 0 ]; then
@@ -21,7 +29,20 @@ fi
 
 LIST="$(mktemp)"
 trap 'rm -f "$LIST"' EXIT
-for c in "${CLIPS[@]}"; do printf "file '%s'\n" "$c" >>"$LIST"; done
+for c in "${CLIPS[@]}"; do
+  base="$(basename "$c")"
+  segs=""
+  if [ -f "$TRIMS" ]; then
+    segs="$(awk -v f="$base" '$1==f && NF>=3 && $1!~/^#/ {print $2" "$3}' "$TRIMS")"
+  fi
+  if [ -n "$segs" ]; then
+    while read -r start end; do
+      printf "file '%s'\ninpoint %s\noutpoint %s\n" "$c" "$start" "$end" >>"$LIST"
+    done <<<"$segs"
+  else
+    printf "file '%s'\n" "$c" >>"$LIST"
+  fi
+done
 
 OUT="$DIR/$NAME.mp4"
 TMP="$DIR/.$NAME.building.mp4"

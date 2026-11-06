@@ -233,6 +233,13 @@ phrase rules around things visible in the picture ("near the bench", "left half
 of the picture"), not coordinates. Setting a new mission replaces the whole
 previous one (PPE and zones).
 
+Adding footage: save each Meraki dashboard export as `<camera>-N.mp4` in
+`data/demo/` (`demo-area`, `workshop`, `coffee`), then run
+`scripts/build_demo_reel.sh <camera> [crop]`. Cut empty stretches with
+`data/demo/trims.txt` (`coffee-1.mp4 0 25` lines keep only those seconds).
+Short "pass" moments need a short per-camera `cooldown_seconds` (2 s) so the
+agent samples them.
+
 Footage notes: `demo-area.mp4` is two Meraki dashboard exports joined and
 cropped to the picture (the export has a dark band on the right). The monitors
 in shot show the safety-sentry STOP/GO banner; the zone prompt tells the model
