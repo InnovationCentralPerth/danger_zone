@@ -184,7 +184,26 @@
           <p class="text-secondary text-center p-4">No incidents yet — watching…</p>
         </div>
       </div>
+
+      <div id="ask-sheet" class="ask-sheet d-none" role="dialog" aria-label="Ask Safety Sentry">
+        <div class="ask-sheet-head">
+          <span class="panel-title">Ask Safety Sentry</span>
+          <button id="ask-close" type="button" class="btn btn-sm btn-ghost" aria-label="Back to incidents">Back to incidents</button>
+        </div>
+        <div id="ask-thread" class="ask-thread">
+          <div id="ask-suggestions" class="ask-suggestions"></div>
+        </div>
+      </div>
     </div>
+
+    <form id="ask-form" class="askbar" autocomplete="off">
+      <svg class="ask-spark" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM18.5 14l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>
+      <input id="ask-input" type="text" class="form-control" maxlength="300"
+             placeholder="Ask Safety Sentry — e.g. any people without hard hats?" aria-label="Ask Safety Sentry"/>
+      <button id="ask-send" type="submit" class="btn btn-primary" aria-label="Ask">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 8l11-5-3.5 10L7.6 9.4z"/></svg>
+      </button>
+    </form>
   </aside>
 </main>
 

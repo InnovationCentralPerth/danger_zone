@@ -245,6 +245,28 @@ agents and the real VLM.
   each card. Say this out loud if someone asks why a tile that is not on screen
   has incidents.
 
+## Ask Safety Sentry
+
+The bar under the incident feed answers plain-English questions from the record
+(press `/` to focus it, Esc to close). Good ones for the stage:
+
+- "How many PPE violations since the mission changed?"
+- "Are there any people not wearing hard hats?" — if the AI was not checking for
+  hard hats it says so and offers **Start watching for hard hat**. This is the
+  best moment in the demo: it retasks itself.
+- "Which camera has the most violations?"
+- "Did anyone go near the bench today?"
+
+Answers show event counts (a person standing still is one event, not eight rows),
+evidence thumbnails, and **▶ Jump** buttons that take the replay to that moment.
+The default window is since the last mission change or Clear feed, and the answer
+says which window it used. Everything is answered by the local model; numbers come
+from the database, and an answer with a number the data does not contain is
+replaced by a plain template sentence.
+
+Before going on stage: press **Clear feed** after rehearsing so "since the mission
+changed" starts clean, and ask each suggested question once to check.
+
 ## Zone rules (natural language)
 
 A mission can mix PPE and zone rules in one sentence. The parser splits them;

@@ -138,3 +138,21 @@ async def test_dashboard_is_self_contained_no_cdn():
     assert "cdn.jsdelivr.net" not in html and "unpkg.com" not in html
     assert "/static/vendor/bootstrap.min.css" in html
     assert 'data-bs-theme="dark"' in html
+
+
+async def test_dashboard_has_the_ask_bar_and_answer_sheet():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        html = (await ac.get("/")).text
+    for el in (
+        "ask-form",
+        "ask-input",
+        "ask-send",
+        "ask-sheet",
+        "ask-thread",
+        "ask-suggestions",
+        "ask-close",
+    ):
+        assert f'id="{el}"' in html, el
+    # The bar sits under the incident panel in the right-hand column, not floating over it.
+    assert html.index('id="ask-form"') > html.index('id="incident-list"')
+    assert html.index('id="ask-form"') < html.index("</aside>")

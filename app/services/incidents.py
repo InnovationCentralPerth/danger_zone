@@ -10,6 +10,7 @@ from typing import Any
 from sqlmodel import Session
 
 from app.db import get_engine
+from app.ingest import positions
 from app.models.db import Incident, IncidentSeverity, IncidentStatus, IncidentType
 from app.runtime.bus import bus
 
@@ -28,6 +29,10 @@ async def create_incident(
     status: IncidentStatus = IncidentStatus.OPEN,
 ) -> Incident:
     """Persist an incident, return it, and publish to the bus."""
+    replay_pos = positions.lookup(snapshot_path)
+    if replay_pos is not None:
+        # Lets the dashboard jump the replay back to the moment this was seen.
+        extra = {**(extra or {}), "replay_position": round(replay_pos, 2)}
     with Session(get_engine()) as session:
         row = Incident(
             type=type,

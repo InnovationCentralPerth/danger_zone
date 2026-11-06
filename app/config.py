@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     # Storage
     data_dir: Path = Path("data")
     site_name: str = "Innovation Central Perth"
+    # Timezone for "today" and the times quoted by the assistant.
+    site_timezone: str = "Australia/Perth"
     # Product name shown in the dashboard header/title and API docs.
     product_name: str = "Safety Sentry"
     snapshot_max_age_days: int = 30

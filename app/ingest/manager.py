@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import get_settings
+from app.ingest import positions
 from app.ingest.base import Frame, FrameRing, FrameSource, RateGate
 from app.ingest.file_source import FileSource
 from app.ingest.rtsp_source import RtspSource
@@ -287,6 +288,8 @@ class IngestManager:
                 elif not gate.ready(frame.ingest_ts):
                     continue
                 path = await asyncio.to_thread(self._persist, serial, frame)
+                if getattr(source, "seekable", False):
+                    positions.register(str(path), source.position())  # type: ignore[attr-defined]
                 await bus.publish(
                     "camera.snapshot",
                     {

@@ -1106,6 +1106,209 @@ evtSource.onerror = () => {
   document.getElementById('heartbeat-banner').textContent = 'Lost connection to agent stream — retrying…';
 };
 
+// ---- Ask Safety Sentry -------------------------------------------------------
+// A plain-English question box. The server turns the question into a fixed query over
+// the incident record and answers from the facts, with evidence you can click.
+
+const ASK_SUGGESTIONS = [
+  'How many PPE violations since the mission changed?',
+  'Are there any people not wearing hard hats?',
+  'Which camera has the most violations?',
+  'What are you watching for right now?',
+];
+let askBusy = false;
+
+function askEls() {
+  return {
+    form: document.getElementById('ask-form'),
+    input: document.getElementById('ask-input'),
+    send: document.getElementById('ask-send'),
+    sheet: document.getElementById('ask-sheet'),
+    thread: document.getElementById('ask-thread'),
+    suggestions: document.getElementById('ask-suggestions'),
+  };
+}
+
+function openAsk() {
+  const { sheet } = askEls();
+  sheet?.classList.remove('d-none');
+}
+
+function closeAsk() {
+  const { sheet, input } = askEls();
+  sheet?.classList.add('d-none');
+  input?.blur();
+}
+
+function renderAskSuggestions() {
+  const { suggestions } = askEls();
+  if (!suggestions) return;
+  suggestions.innerHTML = '<div class="ask-hint">Ask about what Safety Sentry has seen, in plain English:</div>';
+  for (const q of ASK_SUGGESTIONS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-chip';
+    b.textContent = q;
+    b.addEventListener('click', () => sendAsk(q));
+    suggestions.appendChild(b);
+  }
+}
+
+function askEvidenceHtml(e) {
+  const label = escapeHtml(String(e.type || '').replace(/_/g, ' '));
+  const thumb = e.has_snapshot
+    ? `<a href="/incidents/${e.incident_id}/snapshot" class="incident-thumb-link"
+          data-incident-id="${e.incident_id}" data-incident-type="${label}" data-incident-severity=""
+          data-incident-time="${escapeHtml(e.time)}" data-incident-summary="${escapeHtml(e.summary)}">
+         <img src="/incidents/${e.incident_id}/snapshot" class="incident-thumb" alt="Evidence" loading="lazy">
+       </a>`
+    : '';
+  const jump = e.replay_position !== null && e.replay_position !== undefined
+    ? `<button type="button" class="btn btn-sm ask-jump" data-camera="${escapeHtml(e.camera_id)}"
+               data-pos="${e.replay_position}" title="Jump the replay to this moment">▶ Jump to ${fmtClock(e.replay_position)}</button>`
+    : '';
+  return `<div class="ask-ev">${thumb}
+    <div class="ask-ev-cap"><b>${escapeHtml(e.time)}</b> · ${escapeHtml(truncate(e.camera, 28))}</div>${jump}</div>`;
+}
+
+function renderAskAnswer(card, data) {
+  const f = data.facts || {};
+  const chips = [];
+  const asChips = (obj, cls) => {
+    const entries = Object.entries(obj || {});
+    if (entries.length > 1) {
+      for (const [k, v] of entries) chips.push(`<span class="incident-meta-tag ${cls}">${escapeHtml(truncate(k, 44))} · ${v}</span>`);
+    }
+  };
+  asChips(f.by_camera, 'camera-tag');
+  asChips(f.by_item, '');
+  asChips(f.by_rule, 'mission-tag');
+
+  const actions = (data.actions || []).map((a, i) =>
+    `<button type="button" class="btn btn-sm btn-primary ask-action" data-i="${i}">${escapeHtml(a.label)}</button>`).join('');
+  const meta = [];
+  if (typeof f.events === 'number') meta.push(`${f.events} event${f.events === 1 ? '' : 's'} from ${f.samples} detection${f.samples === 1 ? '' : 's'}`);
+  if (f.window && f.window.label) meta.push(escapeHtml(f.window.label));
+  meta.push(`${(data.took_ms / 1000).toFixed(1)}s`);
+
+  card.querySelector('.ask-a').classList.remove('thinking');
+  card.querySelector('.ask-a').textContent = data.answer;
+  card.insertAdjacentHTML('beforeend', `
+    ${chips.length ? `<div class="ask-breakdown">${chips.join('')}</div>` : ''}
+    ${(data.evidence || []).length ? `<div class="ask-evidence">${data.evidence.map(askEvidenceHtml).join('')}</div>` : ''}
+    ${actions ? `<div class="ask-actions">${actions}</div>` : ''}
+    <div class="ask-meta">${meta.join(' · ')}</div>`);
+  card._actions = data.actions || [];
+}
+
+async function sendAsk(question) {
+  const { input, send, thread, suggestions } = askEls();
+  const q = String(question || '').trim();
+  if (!q || askBusy || !thread) return;
+  askBusy = true;
+  send.disabled = true;
+  openAsk();
+  suggestions.classList.add('d-none');
+  input.value = '';
+
+  const card = document.createElement('div');
+  card.className = 'ask-card';
+  card.innerHTML = `<div class="ask-q">${escapeHtml(q)}</div>
+    <div class="ask-a thinking"><span class="ask-dots"><span></span><span></span><span></span></span> Checking the record…</div>`;
+  thread.appendChild(card);
+  card.scrollIntoView({ block: 'end', behavior: 'smooth' });
+
+  try {
+    const r = await fetch('/assistant/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, feed_cleared_after_id: feedClearedAfterId || null }),
+    });
+    if (!r.ok) {
+      let detail = `Something went wrong (${r.status}).`;
+      try { detail = (await r.json()).detail || detail; } catch (e) { /* keep default */ }
+      throw new Error(typeof detail === 'string' ? detail : 'Something went wrong.');
+    }
+    renderAskAnswer(card, await r.json());
+  } catch (e) {
+    const a = card.querySelector('.ask-a');
+    a.classList.remove('thinking');
+    a.textContent = e.message || 'I couldn’t answer that just now.';
+  } finally {
+    askBusy = false;
+    send.disabled = false;
+    card.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }
+}
+
+async function jumpToMoment(serial, position) {
+  const sel = document.getElementById('camera-select');
+  if (sel && sel.value !== serial) {
+    sel.value = serial;
+    selectCamera(serial);
+  }
+  const r = await fetch(`/cameras/${serial}/playback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // A few seconds of lead-in so the viewer sees it happen, not just the aftermath.
+    body: JSON.stringify({ position: Math.max(0, position - 3), paused: false }),
+  });
+  if (r.ok) {
+    const wrap = document.getElementById('camera-image-wrap');
+    wrap.classList.remove('jump-flash');
+    void wrap.offsetWidth;
+    wrap.classList.add('jump-flash');
+    return true;
+  }
+  return false;
+}
+
+function initAssistant() {
+  const { form, input, thread } = askEls();
+  if (!form || !input) return;
+  renderAskSuggestions();
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); sendAsk(input.value); });
+  input.addEventListener('focus', openAsk);
+  document.getElementById('ask-close')?.addEventListener('click', closeAsk);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAsk();
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '');
+    if (e.key === '/' && !typing) { e.preventDefault(); input.focus(); }
+  });
+
+  thread.addEventListener('click', async (e) => {
+    const jump = e.target.closest('.ask-jump');
+    if (jump) {
+      jump.disabled = true;
+      const ok = await jumpToMoment(jump.dataset.camera, parseFloat(jump.dataset.pos));
+      jump.textContent = ok ? '✓ Jumped — watch the video' : 'Could not jump';
+      setTimeout(() => { jump.disabled = false; }, 1500);
+      return;
+    }
+    const act = e.target.closest('.ask-action');
+    if (act) {
+      const card = act.closest('.ask-card');
+      const action = card && card._actions ? card._actions[parseInt(act.dataset.i, 10)] : null;
+      if (!action || action.type !== 'set_mission') return;
+      act.disabled = true;
+      act.textContent = 'Setting mission…';
+      try {
+        const r = await fetch('/agents/context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mission: action.mission }),
+        });
+        act.textContent = r.ok ? '✓ Now watching' : 'Could not set the mission';
+        if (!r.ok) act.disabled = false;
+      } catch (err) {
+        act.textContent = 'Could not set the mission';
+        act.disabled = false;
+      }
+    }
+  });
+}
+
 // ---- status bar (clock, system, cameras, AI) -------------------------------
 
 function initOpsBar() {
@@ -1149,4 +1352,5 @@ function initOpsBar() {
 
 // Wire up replay scrubbing, incident-scope buttons and the status bar once everything above is defined.
 initPlaybackControls();
+initAssistant();
 initOpsBar();

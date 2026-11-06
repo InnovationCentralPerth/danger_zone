@@ -113,6 +113,7 @@ app = FastAPI(
 # Routers (imported here to avoid circular imports)
 from app.api.agents import router as agents_router  # noqa: E402
 from app.api.analytics import router as analytics_router  # noqa: E402
+from app.api.assistant import router as assistant_router  # noqa: E402
 from app.api.cameras import router as cameras_router  # noqa: E402
 from app.api.incidents import router as incidents_router  # noqa: E402
 from app.api.mission import router as mission_router  # noqa: E402
@@ -128,6 +129,7 @@ app.include_router(network_router, prefix="/network", tags=["network"])
 app.include_router(cameras_router, prefix="/cameras", tags=["cameras"])
 app.include_router(analytics_router, prefix="/cameras", tags=["analytics-watcher"])
 app.include_router(models_router, prefix="/models", tags=["models"])
+app.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(webhook_router, prefix="/webhooks", tags=["webhooks"])
 
