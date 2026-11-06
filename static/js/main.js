@@ -135,7 +135,7 @@ async function loadConfiguredCamera() {
   for (const cam of merged) {
     const opt = document.createElement('option');
     opt.value = cam.serial;
-    opt.textContent = `${cam.label} (${cam.serial})`;
+    opt.textContent = cam.label;
     select.appendChild(opt);
   }
   select.disabled = false;
@@ -148,6 +148,7 @@ async function loadConfiguredCamera() {
     (remembered && merged.find((c) => c.serial === remembered)) ? remembered : merged[0].serial;
   select.value = initial;
   selectCamera(initial);
+  relabelCameras();
 }
 
 function cameraModeFor(meta) {
@@ -179,6 +180,14 @@ function setCameraMode(meta) {
     overlay.textContent = mode;
     overlay.className = `camera-mode-overlay ${cls} d-none`;
   }
+  // Watcher / Capture-now only mean something for Meraki cloud snapshots.
+  const cloud = mode === 'CLOUD SNAPSHOT';
+  document.querySelectorAll('.cloud-only').forEach((el) => el.classList.toggle('d-none', !cloud));
+  const caption = document.getElementById('camera-caption');
+  if (caption) {
+    caption.textContent = meta ? meta.label : '';
+    caption.classList.toggle('d-none', !meta);
+  }
 }
 
 function selectCamera(serial) {
@@ -208,6 +217,9 @@ function selectCamera(serial) {
 
 // ---- replay scrubbing ------------------------------------------------------
 
+const ICON_PAUSE = '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2" y="1.5" width="3" height="9" rx="0.8"/><rect x="7" y="1.5" width="3" height="9" rx="0.8"/></svg>';
+const ICON_PLAY = '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1.5v9l7.5-4.5z"/></svg>';
+
 let playbackTimer = null;
 let playbackDragging = false;
 let playbackState = null;
@@ -232,7 +244,7 @@ function renderPlayback(state) {
   const slider = document.getElementById('playback-slider');
   slider.max = state.duration;
   if (!playbackDragging) slider.value = state.position;
-  document.getElementById('playback-toggle').textContent = state.paused ? '▶' : '⏸';
+  document.getElementById('playback-toggle').innerHTML = state.paused ? ICON_PLAY : ICON_PAUSE;
   document.getElementById('playback-time').textContent =
     `${fmtClock(playbackDragging ? slider.value : state.position)} / ${fmtClock(state.duration)}`;
 
@@ -406,9 +418,11 @@ function refreshSnapshot() {
       status.textContent = 'stream stalled';
     };
     img.onload = () => {
+      // Never claim "live" for a recording: the badge follows the camera's mode.
+      const mode = cameraModeFor(cameraMeta.get(cameraSerial));
       const status = document.getElementById('camera-status');
       status.className = 'badge bg-success';
-      status.textContent = 'live';
+      status.textContent = mode === 'LIVE' ? 'live' : mode.startsWith('REPLAY') ? 'playing' : 'streaming';
     };
     img.classList.remove('d-none');
     empty.classList.add('d-none');
@@ -851,6 +865,15 @@ function addMissionMarker(state) {
     `<div class="mission-marker">▶ ${escapeHtml(text)}<small>${time}</small></div>`);
 }
 
+function relabelCameras() {
+  for (const el of document.querySelectorAll('[data-camera-id]')) {
+    const serial = el.dataset.cameraId;
+    if (!serial) continue;
+    const tag = el.querySelector('.camera-tag');
+    if (tag) tag.textContent = cameraLabel(serial);
+  }
+}
+
 function cameraLabel(serial) {
   const meta = cameraMeta.get(serial);
   return meta ? meta.label : serial;
@@ -893,8 +916,9 @@ function renderIncidentCard(d) {
   const cardClass = isAlert ? `incident-card ${d.severity}` : 'incident-card info-note';
   const cameraId = d.camera_id;
   const clientMac = d.client_mac;
-  const summary = escapeHtml(d.summary);
-  const type = escapeHtml(d.type || '');
+  // The camera is already shown as a tag, so drop the serial from the sentence.
+  const summary = escapeHtml(String(d.summary || '').replace(/ on camera [A-Z0-9]{4}(?:-[A-Z0-9]{4}){2}/, ''));
+  const type = escapeHtml((d.type || '').replace(/_/g, ' '));
   const sev = escapeHtml(d.severity || '');
 
   const extra = parseExtra(d);
@@ -982,6 +1006,7 @@ evtSource.addEventListener('incident_new', (e) => {
   }
   prependTo('incident-list', renderIncidentCard(d));
   applyScope();
+  if (isAlert && d.camera_id && d.camera_id === cameraSerial) flashAlert();
 
   // If incident has a snapshot, refresh the tile
   if (d.snapshot_path && cameraSerial && d.camera_id === cameraSerial) {
@@ -996,19 +1021,69 @@ evtSource.addEventListener('heartbeat', (e) => {
   banner.innerHTML = `<strong>Agent status:</strong> ${d.message}`;
 });
 
+// Agent decisions are written for engineers; show the audience plain English and keep
+// the raw text as a tooltip.
+function prettyDecision(raw) {
+  const t = String(raw || '');
+  const pct = (v) => `${Math.round(parseFloat(v) * 100)}%`;
+  let m;
+  if ((m = t.match(/^silent \(multi\): items=.*?, conf=[\d.]+, in_area=(\d+)/))) {
+    return m[1] === '0' ? 'Nobody in view — nothing to report' : `${m[1]} in view · not confident enough to raise an alert`;
+  }
+  if ((m = t.match(/^PPE_VIOLATION \(multi\) confirmed: (.*) \(conf=([\d.]+)\) -> incident #(\d+)/))) {
+    return `Violation confirmed — missing ${m[1]} · ${pct(m[2])} sure → incident #${m[3]}`;
+  }
+  if ((m = t.match(/^PPE_OK \(multi\): (\d+) person\(s\) compliant with (.*) \(conf=([\d.]+)\)/))) {
+    return `${m[1]} compliant with ${m[2]} · ${pct(m[3])} sure`;
+  }
+  if ((m = t.match(/^ZONE RULE violated \((\d+)\): (.*)/))) {
+    return `Zone rule broken: ${m[2].replace(/\(conf=([\d.]+)\)/g, (_, c) => `(${pct(c)} sure)`)}`;
+  }
+  if (/^cleared: rule \d+ ok/.test(t)) {
+    return t.replace(/^cleared: /, 'Zone rules clear — ').replace(/rule (\d+) ok \(conf=([\d.]+)\)/g, (_, n, c) => `rule ${n} (${pct(c)})`);
+  }
+  return t;
+}
+
 evtSource.addEventListener('agent_trace', (e) => {
   const d = JSON.parse(e.data);
   const ts = new Date(d.timestamp).toLocaleTimeString();
   prependTo('trace-list', `
     <div class="trace-entry text-muted" data-camera-id="${escapeHtml(d.serial || '')}">
       ${d.serial ? `<span class="camera-tag me-1">${escapeHtml(cameraLabel(d.serial))}</span>` : ''}
-      <span class="text-info fw-bold">${d.agent}</span>
-      <span class="ms-1">${d.decision}</span>
+      <span class="text-info fw-bold">${escapeHtml(String(d.agent || '').replace(/_/g, ' '))}</span>
+      <span class="ms-1" title="${escapeHtml(d.decision)}">${escapeHtml(prettyDecision(d.decision))}</span>
       <small class="float-end">${ts} · ${d.latency_ms}ms</small>
     </div>
   `);
   applyScope();
+  if (d.serial && d.serial === cameraSerial) pulseAiHud(d);
 });
+
+// The AI chip on the video: lights up each time an agent finishes judging a frame
+// from the camera on screen, with how long the model took.
+let aiHudTimer = null;
+function pulseAiHud(d) {
+  const hud = document.getElementById('ai-hud');
+  const text = document.getElementById('ai-hud-text');
+  if (!hud || !text) return;
+  const secs = typeof d.latency_ms === 'number' ? (d.latency_ms / 1000).toFixed(1) : '';
+  text.textContent = `${String(d.agent || 'agent').replace('_', ' ')} · ${secs}s`;
+  hud.classList.add('busy');
+  clearTimeout(aiHudTimer);
+  aiHudTimer = setTimeout(() => {
+    hud.classList.remove('busy');
+    text.textContent = 'AI watching';
+  }, 2200);
+}
+
+function flashAlert() {
+  const wrap = document.getElementById('camera-image-wrap');
+  if (!wrap) return;
+  wrap.classList.remove('alert-flash');
+  void wrap.offsetWidth; // restart the animation
+  wrap.classList.add('alert-flash');
+}
 
 // Click-to-modal for incident thumbnails (event delegation — survives
 // re-renders and works for hydrated + SSE-streamed cards).

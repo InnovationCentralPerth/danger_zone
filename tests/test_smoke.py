@@ -77,8 +77,8 @@ async def test_dashboard_powered_by_strip_and_status_bar():
     assert 'src="/static/img/partners/meraki.png"' in html
     assert 'src="/static/img/partners/splunk.png"' in html
     assert 'src="/static/img/partners/niin.png"' in html
-    # Official ICP logo (not the old SVG) in both the navbar and the footer.
-    assert html.count('src="/static/img/partners/icp.png"') == 2
+    # Official ICP logo (not the old SVG), once, in the header.
+    assert html.count('src="/static/img/partners/icp.png"') == 1
     assert "icp-logo.svg" not in html
     assert 'alt="NIIN Sovereign Cloud"' in html
     assert 'id="ops-clock-perth"' in html and 'id="ops-ai"' in html
@@ -116,3 +116,25 @@ async def test_default_product_name_is_safety_sentry():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         html = (await ac.get("/")).text
     assert '<span class="brand-name">SAFETY SENTRY</span>' in html
+
+
+async def test_partner_logos_are_in_the_header_above_the_fold():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        html = (await ac.get("/")).text
+    header_end = html.index("</header>")
+    main_start = html.index("<main")
+    assert header_end < main_start
+    head = html[:header_end]
+    for logo in ("meraki", "splunk", "niin", "icp"):
+        assert f'src="/static/img/partners/{logo}.png"' in head, logo
+    # The footer is only the trademark line now, not a logo strip.
+    footer = html[html.index("<footer") : html.index("</footer>")]
+    assert "<img" not in footer and "Splunk LLC" in footer
+
+
+async def test_dashboard_is_self_contained_no_cdn():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        html = (await ac.get("/")).text
+    assert "cdn.jsdelivr.net" not in html and "unpkg.com" not in html
+    assert "/static/vendor/bootstrap.min.css" in html
+    assert 'data-bs-theme="dark"' in html

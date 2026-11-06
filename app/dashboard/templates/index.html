@@ -1,265 +1,197 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{{ product_name }} — AI Safety &amp; Security Monitor</title>
-  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js"></script>
-  <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link rel="preload" href="/static/fonts/Inter-var.woff2" as="font" type="font/woff2" crossorigin/>
+  <link href="/static/vendor/bootstrap.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/css/main.css?v={{ asset_version }}"/>
 </head>
-<body class="bg-dark text-light">
+<body class="app">
 
-<nav class="navbar navbar-dark bg-black border-bottom border-danger">
-  <div class="container-fluid">
-    <div class="d-flex align-items-center gap-3">
+<header class="topbar">
+  <div class="topbar-main">
+    <div class="brandblock">
       <a href="https://innovationcentralperth.com.au/" target="_blank" rel="noopener"
-         class="navbar-icp-link partner-tile partner-tile-sm d-none d-sm-inline-flex"
-         title="Innovation Central Perth">
-        <img src="/static/img/partners/icp.png" alt="Innovation Central Perth" class="navbar-icp-logo"/>
+         class="partner-tile partner-tile-icp d-none d-md-inline-flex" title="Innovation Central Perth">
+        <img src="/static/img/partners/icp.png" alt="Innovation Central Perth" class="partner-logo partner-logo-icp"/>
       </a>
-      <span class="navbar-brand brand-lockup mb-0">
+      <span class="brand-lockup">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-name">{{ product_name|upper }}</span>
+        <span class="brand-text">
+          <span class="brand-name">{{ product_name|upper }}</span>
+          <span class="brand-tag">AI Safety &amp; Security Monitor</span>
+        </span>
       </span>
-      <span class="navbar-subtitle small d-none d-md-inline">AI Safety &amp; Security Monitor</span>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-      <div id="agent-modes" class="d-flex align-items-center gap-1 me-2"></div>
-      <label for="model-select" class="small text-muted mb-0">VLM:</label>
-      <select id="model-select" class="form-select form-select-sm bg-dark text-light border-secondary" style="width:auto;">
-        <option value="">loading…</option>
-      </select>
-      <a href="/docs" class="btn btn-outline-light btn-sm" target="_blank">API Docs</a>
-    </div>
-  </div>
-</nav>
-
-<div class="opsbar" role="status" aria-label="System status">
-  <span class="ops-item"><span id="ops-dot" class="ops-dot"></span>SYSTEM <b id="ops-system">CONNECTING</b></span>
-  <span class="ops-item">SITE <b>{{ site_name }}</b></span>
-  <span class="ops-item">CAMERAS <b id="ops-cameras">–</b></span>
-  <span class="ops-item">AI <b id="ops-ai">–</b> <span class="ops-sub">NIIN Sovereign Cloud · no external AI</span></span>
-  <span class="ops-item ops-clock ms-auto">
-    <b id="ops-clock-perth">--:--:--</b> <span class="ops-sub">Perth</span>
-    <span class="ops-sep">|</span>
-    <b id="ops-clock-melb">--:--:--</b> <span class="ops-sub">Melbourne</span>
-  </span>
-</div>
-
-<div class="container-fluid py-3">
-  <div class="row g-3">
-
-    <!-- Heartbeat / status banner -->
-    <div class="col-12">
-      <div id="heartbeat-banner" class="alert alert-secondary mb-0 py-2">
-        <span class="text-muted">Connecting to agent stream…</span>
-      </div>
     </div>
 
-    <!-- Active Mission (dynamic PPE context) -->
-    <div class="col-12">
-      <div class="card bg-black border-warning mission-card">
-        <div class="card-header border-secondary d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <span class="fw-bold text-warning">
-            <span class="mission-icon">⚙</span> Active Mission
-            <small id="mission-status-label" class="text-muted ms-2 fw-normal">— default (from cameras.yaml)</small>
-          </span>
-          <button id="mission-clear" type="button" class="btn btn-sm btn-outline-secondary d-none">
-            Clear &amp; revert to default
-          </button>
-        </div>
-        <div class="card-body py-3">
-          <div class="row g-3">
-            <div class="col-lg-7">
-              <label for="mission-input" class="small text-muted mb-1">
-                Describe what PPE workers must wear and which areas are off limits (plain English):
-              </label>
-              <div class="d-flex flex-wrap gap-1 mb-2">
-                <span class="small text-muted me-1 align-self-center">Presets:</span>
-                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
-                        data-mission="Workers in this workshop must wear a hard hat.">Hard hat</button>
-                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
-                        data-mission="Workers in this workshop must wear a hard hat and a high-visibility safety vest.">Hard hat + vest</button>
-                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
-                        data-mission="Workers in this workshop must wear a hard hat, a high-visibility safety vest, and safety goggles.">All three</button>
-                <button type="button" class="btn btn-outline-warning btn-sm mission-preset"
-                        data-mission="Workers in this workshop must wear safety goggles.">Goggles only</button>
-              </div>
-              <div class="d-flex flex-wrap gap-1 mb-2">
-                <span class="small text-muted me-1 align-self-center">Zones:</span>
-                <button type="button" class="btn btn-outline-danger btn-sm mission-preset"
-                        data-mission="Nobody is allowed to stand at or near the demo bench.">Keep off the bench</button>
-                <button type="button" class="btn btn-outline-danger btn-sm mission-preset"
-                        data-mission="Nobody may be in the left half of the picture. Everyone must wear a high-visibility safety vest.">Left half off limits + vest</button>
-              </div>
-              <div class="d-flex gap-2 align-items-start">
-                <textarea id="mission-input"
-                          class="form-control bg-dark text-light border-secondary"
-                          rows="2"
-                          maxlength="500"
-                          placeholder="e.g. workers in this electronics lab must wear safety glasses and anti-static wrist straps"></textarea>
-                <button id="mission-set" type="button" class="btn btn-warning btn-sm flex-shrink-0">
-                  <span id="mission-set-label">Set Mission</span>
-                  <span id="mission-set-spinner" class="spinner-border spinner-border-sm ms-1 d-none" role="status"></span>
-                </button>
-              </div>
-              <div id="mission-error" class="small text-danger mt-1 d-none"></div>
-              <small class="text-muted">One LLM call parses the instruction; the agents then check every PPE item and zone rule on each snapshot. Zones are plain English, not coordinates. No restart, no code change.</small>
-            </div>
-            <div class="col-lg-5">
-              <div class="small text-muted mb-1">Currently checking for:</div>
-              <div id="mission-chips" class="d-flex flex-wrap gap-1 mb-2">
-                <span class="badge bg-secondary mission-chip-default">loading…</span>
-              </div>
-              <div id="mission-note" class="small fst-italic text-muted"></div>
-              <div id="mission-meta" class="small text-secondary mt-1"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Camera tile -->
-    <div class="col-12">
-      <div class="card bg-black border-secondary">
-        <div class="card-header border-secondary fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span>Camera Feed</span>
-            <select id="camera-select"
-                    class="form-select form-select-sm bg-dark text-light border-secondary camera-select"
-                    title="Switch active camera"
-                    aria-label="Active camera"
-                    disabled>
-              <option value="">Loading…</option>
-            </select>
-            <span id="camera-serial" class="text-muted small"></span>
-            <span id="camera-mode" class="badge bg-secondary d-none">—</span>
-          </div>
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span id="camera-status" class="badge bg-secondary">idle</span>
-            <div id="watcher-pill" class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded border border-secondary small" title="Analytics-gated capture watcher">
-              <span id="watcher-dot" class="auto-dot off"></span>
-              <span id="watcher-label" class="text-muted">Watcher: off</span>
-              <input id="watcher-interval" type="number" min="2" max="60" step="1" value="5"
-                     class="form-control form-control-sm bg-dark text-light border-secondary ms-1"
-                     style="width: 4rem;" title="Analytics poll interval (seconds)"/>
-              <span class="text-muted">s</span>
-              <button id="watcher-toggle" class="btn btn-sm btn-outline-warning ms-1">Start</button>
-            </div>
-            <button id="snapshot-trigger" class="btn btn-sm btn-outline-warning">Capture now</button>
-          </div>
-        </div>
-        <div class="card-body camera-placeholder text-center py-3">
-          <div id="camera-image-wrap" class="position-relative d-inline-block">
-            <img id="camera-image"
-                 src=""
-                 alt="Camera snapshot"
-                 class="img-fluid rounded camera-snapshot d-none"
-                 style="max-height: 50vh;"/>
-            <div id="camera-mode-overlay" class="camera-mode-overlay d-none">REPLAY</div>
-            <svg id="zone-overlay"
-                 class="position-absolute top-0 start-0 w-100 h-100 d-none"
-                 viewBox="0 0 100 100"
-                 preserveAspectRatio="none"
-                 style="pointer-events: none;"></svg>
-          </div>
-          <div id="camera-empty" class="py-5">
-            <div class="display-6 text-secondary mb-2">📷</div>
-            <p class="text-muted mb-0">No snapshot yet. Click <em>Capture now</em>, flip on <em>Auto-capture</em>, or wait for a motion event.</p>
-            <small class="text-secondary">Cameras discovered live from Meraki; override zones in <code>config/cameras.yaml</code></small>
-          </div>
-          <div id="playback-bar" class="playback-bar d-none align-items-center gap-2 mt-2 px-2">
-            <button id="playback-toggle" type="button" class="btn btn-sm btn-outline-warning playback-btn"
-                    title="Pause / play">⏸</button>
-            <button id="loop-a" type="button" class="btn btn-sm btn-outline-secondary playback-btn"
-                    title="Mark loop start at the current position">A</button>
-            <button id="loop-b" type="button" class="btn btn-sm btn-outline-secondary playback-btn"
-                    title="Mark loop end here and start looping (no A set: loops the last 10 s)">B</button>
-            <div class="position-relative flex-grow-1">
-              <input id="playback-slider" type="range" min="0" max="100" step="0.5" value="0"
-                     class="form-range w-100" aria-label="Replay position">
-              <div id="loop-band" class="loop-band d-none"></div>
-            </div>
-            <span id="playback-time" class="small text-muted playback-time">0:00 / 0:00</span>
-            <button id="loop-clear" type="button" class="btn btn-sm btn-warning d-none"
-                    title="Stop looping and carry on">⟲ ✕</button>
-          </div>
-          <div id="loop-hint" class="small text-warning mt-1 d-none"></div>
-          <div id="zone-legend" class="mt-2 small text-start ps-2 d-none"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Incident feed -->
-    <div class="col-lg-8">
-      <div class="card bg-black border-secondary">
-        <div class="card-header d-flex justify-content-between align-items-center border-secondary">
-          <span class="fw-bold">Live Incidents</span>
-          <span class="d-flex align-items-center gap-2">
-            <small id="incident-hidden-note" class="text-muted d-none"></small>
-            <span class="btn-group btn-group-sm" role="group" aria-label="Incident scope">
-              <button type="button" id="scope-camera" class="btn btn-outline-warning scope-btn">This camera</button>
-              <button type="button" id="scope-all" class="btn btn-outline-warning scope-btn">All cameras</button>
-            </span>
-            <button type="button" id="feed-clear" class="btn btn-sm btn-outline-secondary"
-                    title="Empty the incident and reasoning feeds (nothing is deleted from the database)">Clear feed</button>
-            <span id="incident-count" class="badge bg-danger">0</span>
-          </span>
-        </div>
-        <div class="card-body p-0" style="max-height: 70vh; overflow-y: auto;">
-          <div id="incident-list">
-            <p class="text-secondary text-center p-4">No incidents yet — watching…</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Agent trace feed -->
-    <div class="col-lg-4">
-      <div class="card bg-black border-secondary">
-        <div class="card-header border-secondary fw-bold">Agent Reasoning</div>
-        <div class="card-body p-0" style="max-height: 70vh; overflow-y: auto;">
-          <div id="trace-list" class="p-2">
-            <p class="text-secondary text-center p-3 small mb-1">No reasoning traces yet.</p>
-            <p class="text-muted text-center small mb-0" style="font-size: 0.72rem;">
-              Real agent traces appear here when the VLM-backed agents run (milestone 3).
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<footer class="funder-strip mt-4 py-3 border-top border-secondary">
-  <div class="container-fluid">
-    <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 gap-md-4">
-      <span class="strip-label">Powered by</span>
+    <div class="partners">
+      <span class="strip-label d-none d-lg-inline">Powered by</span>
       {% for p in partners %}
         {% if p.href %}<a href="{{ p.href }}" target="_blank" rel="noopener" class="partner-tile" title="{{ p.name }}">{% else %}<span class="partner-tile" title="{{ p.name }}">{% endif %}
           {% if p.logo %}<img src="{{ p.logo }}" alt="{{ p.name }}" class="partner-logo partner-logo-{{ p.key }}"/>{% else %}<span class="partner-wordmark">{{ p.name }}</span>{% endif %}
         {% if p.href %}</a>{% else %}</span>{% endif %}
       {% endfor %}
-      <span class="strip-divider d-none d-md-inline-block"></span>
-      <span class="strip-label">Supported by</span>
-      <a href="https://innovationcentralperth.com.au/" target="_blank" rel="noopener"
-         class="partner-tile" title="Innovation Central Perth">
-        <img src="/static/img/partners/icp.png" alt="Innovation Central Perth" class="partner-logo partner-logo-icp"/>
-      </a>
-      <a href="https://www.cisco.com/" target="_blank" rel="noopener"
-         class="funder-link" title="Cisco">
-        <img src="/static/img/cisco-logo.svg" alt="Cisco" class="funder-logo funder-logo-cisco"/>
-      </a>
     </div>
-    <p class="strip-legal text-center mb-0 mt-2">
-      Splunk, Splunk&gt;, and Turn Data Into Doing are trademarks or registered trademarks of Splunk LLC in the
-      United States and other countries. Cisco and Meraki are trademarks of Cisco Systems, Inc. and/or its
-      affiliates. All other brand names, product names, or trademarks belong to their respective owners.
-    </p>
   </div>
+
+  <div class="opsbar" role="status" aria-label="System status">
+    <span class="ops-item"><span id="ops-dot" class="ops-dot"></span>System <b id="ops-system">CONNECTING</b></span>
+    <span class="ops-item">Site <b>{{ site_name }}</b></span>
+    <span class="ops-item">Cameras <b id="ops-cameras">–</b></span>
+    <span class="ops-item">Agents <span id="agent-modes" class="d-inline-flex align-items-center gap-1"></span></span>
+    <span class="ops-item">AI <b id="ops-ai">–</b> <span class="ops-sub d-none d-xl-inline">NIIN Sovereign Cloud · no external AI</span></span>
+    <span class="ops-item ops-clock ms-auto">
+      <b id="ops-clock-perth">--:--:--</b> <span class="ops-sub">Perth</span>
+      <span class="ops-sep">|</span>
+      <b id="ops-clock-melb">--:--:--</b> <span class="ops-sub">Melbourne</span>
+    </span>
+    <div class="dropdown">
+      <button class="btn btn-sm btn-ghost ops-gear" type="button" data-bs-toggle="dropdown"
+              data-bs-auto-close="outside" aria-expanded="false" title="Operator controls">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.4 1.1l.3 1.6c.4.1.8.3 1.2.5l1.4-.9 1.4 1.4-.9 1.4c.2.4.4.8.5 1.2l1.6.3v2l-1.6.3c-.1.4-.3.8-.5 1.2l.9 1.4-1.4 1.4-1.4-.9c-.4.2-.8.4-1.2.5l-.3 1.6h-2l-.3-1.6c-.4-.1-.8-.3-1.2-.5l-1.4.9-1.4-1.4.9-1.4c-.2-.4-.4-.8-.5-1.2L1.3 9V7l1.6-.3c.1-.4.3-.8.5-1.2l-.9-1.4 1.4-1.4 1.4.9c.4-.2.8-.4 1.2-.5l.3-1.6h2zM8 5.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z"/></svg>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end ops-menu p-3">
+        <label for="model-select" class="form-label small mb-1">Vision model</label>
+        <select id="model-select" class="form-select form-select-sm mb-3"><option value="">loading…</option></select>
+        <a href="/docs" class="btn btn-sm btn-outline-secondary w-100" target="_blank">API documentation</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div id="heartbeat-banner" hidden>Connecting to agent stream…</div>
+
+<main class="stage">
+
+  <section class="stage-video">
+    <div class="panel panel-video">
+      <div class="panel-head">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <select id="camera-select" class="form-select form-select-sm camera-select"
+                  title="Switch active camera" aria-label="Active camera" disabled>
+            <option value="">Loading…</option>
+          </select>
+          <span id="camera-mode" class="badge bg-secondary d-none">—</span>
+          <span id="camera-status" class="badge bg-secondary">idle</span>
+          <span id="camera-serial" class="text-muted small d-none d-xxl-inline"></span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div id="watcher-pill" class="cloud-only d-inline-flex align-items-center gap-1 px-2 py-1 rounded border small" title="Analytics-gated capture watcher">
+            <span id="watcher-dot" class="auto-dot off"></span>
+            <span id="watcher-label" class="text-muted">Watcher: off</span>
+            <input id="watcher-interval" type="number" min="2" max="60" step="1" value="5"
+                   class="form-control form-control-sm ms-1" style="width: 4rem;" title="Analytics poll interval (seconds)"/>
+            <span class="text-muted">s</span>
+            <button id="watcher-toggle" class="btn btn-sm btn-outline-warning ms-1">Start</button>
+          </div>
+          <button id="snapshot-trigger" class="cloud-only btn btn-sm btn-outline-warning">Capture now</button>
+        </div>
+      </div>
+
+      <div class="video-stage">
+        <div id="camera-image-wrap" class="video-wrap">
+          <img id="camera-image" src="" alt="Camera feed" class="camera-snapshot d-none"/>
+          <div id="camera-mode-overlay" class="camera-mode-overlay d-none">REPLAY</div>
+          <div id="camera-caption" class="camera-caption d-none"></div>
+          <div id="ai-hud" class="ai-hud"><span class="ai-dot"></span><span id="ai-hud-text">AI watching</span></div>
+          <svg id="zone-overlay" class="d-none" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        </div>
+        <div id="camera-empty" class="camera-empty">
+          <div class="camera-empty-icon" aria-hidden="true">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8a2 2 0 012-2h2l1.2-1.6A1 1 0 019 4h6a1 1 0 01.8.4L17 6h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
+          </div>
+          <p class="mb-1">Waiting for video…</p>
+          <small class="text-muted">Pick a camera, or use <em>Capture now</em> for a Meraki cloud snapshot.</small>
+        </div>
+      </div>
+
+      <div id="playback-bar" class="playback-bar d-none">
+        <button id="playback-toggle" type="button" class="btn btn-sm btn-ghost playback-btn" title="Pause / play" aria-label="Pause or play"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2" y="1.5" width="3" height="9" rx="0.8"/><rect x="7" y="1.5" width="3" height="9" rx="0.8"/></svg></button>
+        <button id="loop-a" type="button" class="btn btn-sm btn-ghost playback-btn" title="Mark loop start at the current position">A</button>
+        <button id="loop-b" type="button" class="btn btn-sm btn-ghost playback-btn" title="Mark loop end here and start looping (no A set: loops the last 10 s)">B</button>
+        <div class="position-relative flex-grow-1">
+          <input id="playback-slider" type="range" min="0" max="100" step="0.5" value="0"
+                 class="form-range w-100" aria-label="Replay position">
+          <div id="loop-band" class="loop-band d-none"></div>
+        </div>
+        <span id="playback-time" class="playback-time">0:00 / 0:00</span>
+        <button id="loop-clear" type="button" class="btn btn-sm btn-primary d-none" title="Stop looping and carry on">Exit loop</button>
+      </div>
+      <div id="loop-hint" class="loop-hint d-none"></div>
+      <div id="zone-legend" class="zone-legend d-none"></div>
+    </div>
+
+    <div class="panel panel-reasoning">
+      <div class="panel-head"><span class="panel-title">Agent reasoning</span><span class="panel-sub">what the AI decided, and why</span></div>
+      <div class="panel-scroll"><div id="trace-list" class="p-2"></div></div>
+    </div>
+  </section>
+
+  <aside class="stage-side">
+    <div class="panel mission-card">
+      <div class="panel-head">
+        <span class="panel-title">Mission <small id="mission-status-label" class="panel-sub ms-1">— default</small></span>
+        <button id="mission-clear" type="button" class="btn btn-sm btn-ghost d-none">Reset</button>
+      </div>
+      <div class="panel-body">
+        <div class="preset-row">
+          <span class="preset-label">PPE</span>
+          <button type="button" class="btn btn-sm btn-chip mission-preset" data-mission="Workers in this workshop must wear a hard hat.">Hard hat</button>
+          <button type="button" class="btn btn-sm btn-chip mission-preset" data-mission="Workers in this workshop must wear a hard hat and a high-visibility safety vest.">Hard hat + vest</button>
+          <button type="button" class="btn btn-sm btn-chip mission-preset" data-mission="Workers in this workshop must wear a hard hat, a high-visibility safety vest, and safety goggles.">All three</button>
+          <button type="button" class="btn btn-sm btn-chip mission-preset" data-mission="Workers in this workshop must wear safety goggles.">Goggles</button>
+        </div>
+        <div class="preset-row">
+          <span class="preset-label">Zones</span>
+          <button type="button" class="btn btn-sm btn-chip btn-chip-zone mission-preset" data-mission="Nobody is allowed to stand at or near the demo bench.">Keep off the bench</button>
+          <button type="button" class="btn btn-sm btn-chip btn-chip-zone mission-preset" data-mission="Nobody may be in the left half of the picture. Everyone must wear a high-visibility safety vest.">Left half off limits + vest</button>
+        </div>
+        <div class="mission-entry">
+          <textarea id="mission-input" class="form-control" rows="2" maxlength="500"
+                    placeholder="Tell the AI what to look for, in plain English — PPE, restricted areas, or both"></textarea>
+          <button id="mission-set" type="button" class="btn btn-primary flex-shrink-0">
+            <span id="mission-set-label">Set mission</span>
+            <span id="mission-set-spinner" class="spinner-border spinner-border-sm ms-1 d-none" role="status"></span>
+          </button>
+        </div>
+        <div id="mission-error" class="small text-danger mt-1 d-none"></div>
+        <div class="mission-now">
+          <span class="preset-label">Watching for</span>
+          <div id="mission-chips" class="d-flex flex-wrap gap-1"><span class="badge bg-secondary mission-chip-default">loading…</span></div>
+        </div>
+        <div id="mission-note" class="mission-note"></div>
+        <div id="mission-meta" class="mission-meta"></div>
+      </div>
+    </div>
+
+    <div class="panel panel-incidents">
+      <div class="panel-head">
+        <span class="panel-title">Live incidents <span id="incident-count" class="badge bg-danger ms-1">0</span></span>
+        <span class="d-flex align-items-center gap-2">
+          <small id="incident-hidden-note" class="panel-sub d-none"></small>
+          <span class="btn-group btn-group-sm" role="group" aria-label="Incident scope">
+            <button type="button" id="scope-camera" class="btn btn-seg scope-btn">This camera</button>
+            <button type="button" id="scope-all" class="btn btn-seg scope-btn">All</button>
+          </span>
+          <button type="button" id="feed-clear" class="btn btn-sm btn-ghost"
+                  title="Empty the incident and reasoning feeds (nothing is deleted from the database)">Clear</button>
+        </span>
+      </div>
+      <div class="panel-scroll">
+        <div id="incident-list">
+          <p class="text-secondary text-center p-4">No incidents yet — watching…</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer class="legal">
+  Splunk, Splunk&gt;, and Turn Data Into Doing are trademarks or registered trademarks of Splunk LLC in the
+  United States and other countries. Cisco and Meraki are trademarks of Cisco Systems, Inc. and/or its
+  affiliates. All other brand names, product names, or trademarks belong to their respective owners.
 </footer>
 
 <!-- Snapshot lightbox modal (reused for all incident thumbnails) -->
@@ -281,7 +213,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/js/main.js?v={{ asset_version }}"></script>
 </body>
 </html>
