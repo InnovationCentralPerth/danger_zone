@@ -148,13 +148,13 @@ async function loadConfiguredCamera() {
 }
 
 function cameraModeFor(meta) {
-  if (!meta) return 'LIVE (CLOUD)';
+  if (!meta) return 'CLOUD SNAPSHOT';
   if (meta.demoLabel) return String(meta.demoLabel).toUpperCase();
   const t = String(meta.sourceType || '').toLowerCase();
   if (t === 'file') return 'REPLAY';
   if (t === 'rtsp') return 'LIVE';
   if (t === 'synthetic') return 'SYNTHETIC';
-  return 'LIVE (CLOUD)';
+  return 'CLOUD SNAPSHOT';
 }
 
 function setCameraMode(meta) {

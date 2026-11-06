@@ -146,7 +146,7 @@ config/
 
 ## Dashboard source labels and mission presets
 - `static/js/main.js::cameraModeFor()` labels each tile from `/cameras/`:
-  `LIVE` (`source_type: rtsp`), `LIVE (CLOUD)` (Meraki snapshot, no `source:`),
+  `LIVE` (`source_type: rtsp`), `CLOUD SNAPSHOT` (Meraki snapshot, no `source:`),
   `REPLAY` (`source_type: file` or explicit `demo_label`), `SYNTHETIC`
   (`source_type: synthetic`). The badge appears in the tile header and as an
   overlay on the image (`#camera-mode-overlay`) so screenshots are unambiguous.
@@ -184,7 +184,7 @@ config/
 - Cameras without a `source:` block are ignored, so Meraki-only installs are unchanged. Ingest is off unless `INGEST_ENABLED=true`.
 - `GET /cameras/ingest` reports running sources, buffer depth and last sequence. `POST /cameras/{serial}/snapshot` returns the newest buffered frame for ingest-backed cameras instead of calling Meraki.
 - `GET /cameras/{serial}/stream.mjpg` serves a multipart MJPEG stream from the frame ring (only new sequence numbers are sent; the generator ends after 10 s with no new frames). Returns 404 for Meraki-cloud-only cameras. The dashboard uses this for ingest-backed tiles so file/RTSP/synthetic sources look like video instead of a once-per-second still.
-- `GET /cameras/` now exposes `source_type`, `demo_label`, and `vlm_fps` so the dashboard can label a tile `LIVE`, `LIVE (CLOUD)`, `REPLAY`, or `SYNTHETIC`.
+- `GET /cameras/` now exposes `source_type`, `demo_label`, and `vlm_fps` so the dashboard can label a tile `LIVE`, `CLOUD SNAPSHOT`, `REPLAY`, or `SYNTHETIC`.
 - Demo config: a synthetic camera lives in the (gitignored) `config/cameras.yaml`. The default script cycles empty → compliant worker → worker without a hard hat, so a PPE demo always lands on cue.
 - `DEMO_PROFILE=replay` loads `config/cameras.replay.yaml`; see `docs/EXPO_RUNBOOK.md` for the cue sheet and recording guide.
 

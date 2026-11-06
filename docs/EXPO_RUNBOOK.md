@@ -12,7 +12,7 @@ The audience should leave believing two things:
    cameras already belong to.
 
 Do **not** claim the video is live when it is a replay. The dashboard now shows
-a mode badge (`LIVE`, `LIVE (CLOUD)`, `REPLAY`, `SYNTHETIC`) on every tile and
+a mode badge (`LIVE`, `CLOUD SNAPSHOT`, `REPLAY`, `SYNTHETIC`) on every tile and
 an overlay on the image, so the audience can see which mode is running.
 
 ## Architecture reality
@@ -104,8 +104,8 @@ Check all three clips with:
 
 Use the normal `config/cameras.yaml` with no `source:` block. The dashboard
 tile refreshes from Meraki cloud snapshots every few seconds. Label it
-`LIVE (CLOUD)` and say: “this is the real camera; Meraki snapshots are slower
-than the replay path.”
+`CLOUD SNAPSHOT` and say: “this is the real camera; Meraki snapshots are
+stills, not video, and they are slower than the replay path.”
 
 - Start the analytics watcher on the workshop camera at 5 s.
 - Expect 9–14 s cold snapshots and occasional 400s while Meraki uploads.
