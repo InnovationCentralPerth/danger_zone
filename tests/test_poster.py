@@ -61,3 +61,26 @@ def test_poster_data_is_real_recorded_output(html):
     # The honest-limits rule: the unreliable workshop goggles result is not offered.
     workshop = next(x for x in data["moments"] if x["id"] == "c")
     assert "goggles" not in {x["id"] for x in workshop["missions"]}
+
+
+def test_home_screen_has_the_qr_and_the_new_headline(html):
+    # The QR is rendered on the overview (tile 8) from one shared constant, and again in the panel.
+    assert "const QR_SVG = `<svg" in html
+    assert html.count("${QR_SVG}") == 2
+    assert 'class="qrbox"' in html
+    assert "Every site has cameras. Not everyone is watching." in html
+
+
+def test_camera_wall_uses_real_frames(html):
+    m = re.search(r"window\.POSTER = (\{.*?\});\n</script>", html, re.S)
+    data = json.loads(m.group(1).replace("<\\/", "</"))
+    assert len(data["cctv"]) == 6
+    assert {c["cam"].split(" · ")[1] for c in data["cctv"]} == {
+        "DEMO AREA",
+        "WORKSHOP",
+        "COFFEE AREA",
+    }
+    assert all(c["data"].startswith("data:image/jpeg;base64,") for c in data["cctv"])
+    # The feeds are dressed as a monitoring wall: REC badge, camera label, scan-line overlay.
+    assert 'class="rec"' in html.replace('\\"', '"') or '<span class="rec">' in html
+    assert ".feed::before" in html and "repeating-linear-gradient" in html

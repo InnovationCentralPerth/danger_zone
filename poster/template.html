@@ -114,6 +114,33 @@ h1, h2, h3, p { margin: 0; }
 .cams div::before { content: '●'; position: absolute; top: 5px; right: 7px; font-size: .5rem; color: var(--bad); animation: blink 2s infinite; z-index: 1; }
 @keyframes blink { 50% { opacity: .25; } }
 
+/* camera wall: real frames dressed like a monitoring wall */
+.wall { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+.feed { position: relative; overflow: hidden; border-radius: 9px; background: #000; border: 1px solid var(--line2); aspect-ratio: 16 / 10; }
+.feed img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 58%; display: block; filter: saturate(.8) contrast(1.06) brightness(.92);
+  animation: drift 24s ease-in-out infinite alternate; transform-origin: 50% 50%; }
+.feed:nth-child(2n) img { animation-duration: 31s; animation-delay: -9s; } .feed:nth-child(3n) img { animation-duration: 27s; animation-delay: -15s; }
+@keyframes drift { from { transform: scale(1.03) translate(-.8%, -.5%); } to { transform: scale(1.09) translate(.8%, .6%); } }
+.feed::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
+.feed .rec { position: absolute; top: .35rem; left: .45rem; z-index: 2; font: 700 .6rem/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; color: #fff; display: flex; align-items: center; gap: .3rem; text-shadow: 0 1px 3px #000; }
+.feed .rec::before { content: ''; width: .5rem; height: .5rem; border-radius: 50%; background: #ff3b3b; box-shadow: 0 0 8px #ff3b3b; animation: blink 1.6s infinite; }
+.feed .cam { position: absolute; left: .45rem; bottom: .35rem; z-index: 2; font: 600 .58rem/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; color: #d7e3f5; text-shadow: 0 1px 3px #000; }
+.wall.mini { grid-template-columns: repeat(2, 1fr); gap: .3rem; width: 100%; }
+.wall.mini .feed { aspect-ratio: 16 / 9; border-radius: 6px; } .wall.mini .rec { font-size: .5rem; top: .25rem; left: .3rem; } .wall.mini .cam { display: none; }
+.wallcap { font-size: .8rem; color: var(--muted); margin-top: .55rem; line-height: 1.4; }
+.problem-cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 1.2rem; align-items: start; margin-top: 1.2rem; }
+@media (orientation: portrait) { .problem-cols { grid-template-columns: 1fr; } }
+.stack { display: flex; flex-direction: column; gap: .8rem; }
+.stack .card { padding: .8rem 1rem; border-left: 3px solid var(--accent); } .stack .card h3 { margin-bottom: .2rem; }
+
+/* tile 8: scan-to-connect QR on the home screen */
+.qrtile { display: flex; align-items: center; gap: .8rem; width: 100%; height: 100%; }
+.qrbox { height: 100%; max-height: 9.5rem; aspect-ratio: 1; flex: none; background: #fff; border-radius: 10px; padding: .4rem; }
+.qrbox svg { width: 100%; height: 100%; display: block; }
+.qrtext { font-size: .85rem; line-height: 1.35; color: var(--text); font-weight: 600; }
+.qrtext small { display: block; color: var(--muted); font-weight: 400; font-size: .72rem; margin-top: .25rem; }
+
 /* idea */
 .typer { background: #0a0f18; border: 1px solid var(--line2); border-radius: 12px; padding: 1rem 1.1rem; min-height: 5.6rem; font-size: 1.3rem; line-height: 1.4; }
 .caret::after { content: '▍'; color: var(--accent2); animation: blink 1s infinite; margin-left: 1px; }
@@ -257,6 +284,8 @@ window.POSTER = __POSTER_JSON__;
 
   $('#recDate').textContent = new Date(P.recorded_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  const QR_SVG = `__QR_SVG__`;
+  const feed = (c, mini) => `<div class="feed"><img alt="" src="${c.data}"/><span class="rec">REC</span>${mini ? '' : `<span class="cam">${esc(c.cam)}</span>`}</div>`;
   const moment = (id) => P.moments.find((m) => m.id === id);
   const heroMoment = moment('b') || P.moments[0];
   const parseLat = Math.round(P.parses.reduce((a, p) => a + p.latency_ms, 0) / P.parses.length);
@@ -267,8 +296,8 @@ window.POSTER = __POSTER_JSON__;
 
   /* ---------------- overview tiles ---------------- */
   const TILES = [
-    { id: 'problem', n: 1, title: 'Cameras everywhere. Nobody watching.', one: 'Why site safety needs a new approach.',
-      viz: '<div class="mini-chips"><span class="chip">Rules change by site</span><span class="chip">…and by task</span><span class="chip">…and by day</span></div>' },
+    { id: 'problem', n: 1, title: 'Every site has cameras. Not everyone is watching.', one: 'Why site safety needs a new approach.',
+      viz: `<div class="wall mini">${[3, 4, 5, 0].map((i) => (P.cctv || [])[i]).filter(Boolean).map((c) => feed(c, true)).join('')}</div>` },
     { id: 'idea', n: 2, title: 'Just tell it what to look for', one: 'Plain-English missions. No retraining.',
       viz: '<div style="text-align:center"><div class="chip" style="font-style:italic;margin-bottom:.5rem">“Everyone must wear a hard hat and a vest.”</div><div class="mini-chips"><span class="chip ppe">hard hat</span><span class="chip ppe">hi-vis vest</span></div></div>' },
     { id: 'hero', n: 3, star: true, title: 'Same moment, different mission', one: 'Tap a mission, watch the verdict change.',
@@ -281,8 +310,8 @@ window.POSTER = __POSTER_JSON__;
       viz: `<div class="big">~${latMed.toFixed(1)}<small>s per frame</small></div>` },
     { id: 'lessons', n: 7, title: 'What we learned', one: 'Honest lessons from building it.',
       viz: '<div class="big" style="font-size:2rem">4 <small>real surprises</small></div>' },
-    { id: 'next', n: 8, title: 'What’s next', one: 'Splunk, live video, and a way to reach us.',
-      viz: '<div class="mini-chips"><span class="pill ok">Now</span><span class="pill warn">Next · Splunk</span><span class="pill mute">Later</span></div>' },
+    { id: 'next', n: 8, title: 'What’s next · say hello', one: 'Splunk and live video are next.',
+      viz: `<div class="qrtile"><div class="qrbox">${QR_SVG}</div><div class="qrtext">Scan to reach<br>Innovation Central Perth<small>on LinkedIn</small></div></div>` },
   ];
   const grid = $('#grid');
   TILES.forEach((t) => {
@@ -327,13 +356,16 @@ window.POSTER = __POSTER_JSON__;
 
   PANELS.problem = { title: 'The problem', sub: '01', render(el) {
     el.innerHTML = `
-      <p class="lead">Every site has cameras. Almost no site has someone watching all of them.</p>
-      <p class="sub">And what counts as “unsafe” isn’t fixed. It depends on the site, the task and the day.</p>
-      <div class="cams">${'<div></div>'.repeat(12)}</div>
-      <div class="prob">
-        <div class="card"><div class="ico">👷</div><h3>Rules change</h3><p>A hard hat here, goggles there, a keep-out zone only while a crane is lifting.</p></div>
-        <div class="card"><div class="ico">🔧</div><h3>Fixed detectors don’t</h3><p>Traditional detection is trained for one rule. Changing the rule means new data, new training, new deployment.</p></div>
-        <div class="card"><div class="ico">👀</div><h3>People can’t watch everything</h3><p>The moment that matters is usually the one nobody was looking at.</p></div>
+      <p class="lead">Every site has cameras. Not everyone is watching.</p>
+      <p class="sub">And what counts as “unsafe” isn’t fixed: it depends on the site, the task and the day.</p>
+      <div class="problem-cols">
+        <div><div class="wall">${(P.cctv || []).map((c) => feed(c, false)).join('')}</div>
+          <p class="wallcap">Real frames from three Meraki cameras at Innovation Central Perth, each at a quiet moment and a busy one. Footage like this piles up faster than anyone can watch it.</p></div>
+        <div class="stack">
+          <div class="card"><h3>Rules change</h3><p>A hard hat here, goggles there, a keep-out zone only while a crane is lifting.</p></div>
+          <div class="card"><h3>Fixed detectors don’t</h3><p>Traditional detection is trained for one rule. A new rule means new data, new training, new deployment.</p></div>
+          <div class="card"><h3>People can’t watch everything</h3><p>The moment that matters is usually the one nobody was looking at.</p></div>
+        </div>
       </div>`;
   } };
 
@@ -527,7 +559,7 @@ window.POSTER = __POSTER_JSON__;
         <div class="card"><span class="pill mute">Later</span><ul>
           <li>Fast edge detector working with the agentic brain</li><li>Different missions per camera</li><li>Multi-site rollout</li></ul></div>
       </div>
-      <div class="contact"><div class="qr">__QR_SVG__</div>
+      <div class="contact"><div class="qr">${QR_SVG}</div>
         <div class="words"><b>Want this on your site?</b><p class="sub" style="margin-top:0">Find Innovation Central Perth on LinkedIn: scan the code, or ask us to show you the live system.</p>
         <p class="sub">Innovation Central Perth is a partnership between Curtin University and Cisco.</p></div></div>`;
   } };

@@ -20,6 +20,15 @@ import segno
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 LINKEDIN = "https://www.linkedin.com/company/18071579/"
+# Real frames for the camera wall (see extract_cctv.py): file stem, on-screen label.
+CCTV = [
+    ("demo-quiet", "CAM 01 · DEMO AREA"),
+    ("workshop-quiet", "CAM 02 · WORKSHOP"),
+    ("coffee-quiet", "CAM 03 · COFFEE AREA"),
+    ("demo-busy", "CAM 01 · DEMO AREA"),
+    ("workshop-busy", "CAM 02 · WORKSHOP"),
+    ("coffee-busy", "CAM 03 · COFFEE AREA"),
+]
 MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
 
@@ -39,6 +48,10 @@ def main() -> None:
             thumb = e.get("thumb")
             e["thumbData"] = data_uri(ROOT / "assets" / "ask" / thumb) if thumb else None
             e.pop("thumb", None)
+    results["cctv"] = [
+        {"data": data_uri(ROOT / "assets" / "cctv" / f"{name}.jpg"), "cam": cam}
+        for name, cam in CCTV
+    ]
     results["dashboard"] = data_uri(ROOT / "assets" / "dashboard.webp")
     results["linkedin"] = LINKEDIN
 
