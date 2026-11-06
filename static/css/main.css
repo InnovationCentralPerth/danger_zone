@@ -397,3 +397,6 @@ a.partner-tile:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(
 .partner-logo-niin { height: 62px; } /* mark plus the spelled-out name needs the height to stay legible */
 .partner-wordmark { color: #1b1f27; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.02em; line-height: 1.2; }
 .strip-legal { color: #5b6272; font-size: 0.65rem; line-height: 1.4; max-width: 70rem; margin-inline: auto; }
+.partner-logo-icp { height: 44px; }
+.partner-tile-sm { padding: 3px 10px; min-height: 0; border-radius: 5px; box-shadow: none; }
+.partner-tile-sm .navbar-icp-logo { height: 30px; }

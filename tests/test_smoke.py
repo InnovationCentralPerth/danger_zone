@@ -77,6 +77,9 @@ async def test_dashboard_powered_by_strip_and_status_bar():
     assert 'src="/static/img/partners/meraki.png"' in html
     assert 'src="/static/img/partners/splunk.png"' in html
     assert 'src="/static/img/partners/niin.png"' in html
+    # Official ICP logo (not the old SVG) in both the navbar and the footer.
+    assert html.count('src="/static/img/partners/icp.png"') == 2
+    assert "icp-logo.svg" not in html
     assert 'alt="NIIN Sovereign Cloud"' in html
     assert 'id="ops-clock-perth"' in html and 'id="ops-ai"' in html
     assert "Splunk LLC" in html  # required trademark attribution
