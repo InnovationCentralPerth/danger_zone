@@ -476,6 +476,7 @@ a.partner-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(
 .partner-logo-splunk { height: 21px; }
 .partner-logo-niin { height: 40px; }
 .partner-logo-icp { height: 34px; }
+.partner-logo-victory { height: 38px; }
 .partner-wordmark { color: #1b1f27; font-weight: 700; font-size: 0.85rem; line-height: 1.2; }
 
 /* ---- status bar ------------------------------------------------------- */
@@ -678,6 +679,7 @@ a.partner-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(
   .partner-logo-meraki { height: 30px; }
   .partner-logo-niin { height: 34px; }
   .partner-logo-icp { height: 28px; }
+  .partner-logo-victory { height: 31px; }
   .brand-name { font-size: 1.15rem; }
   .preset-row { margin-bottom: 0.35rem; }
   .mission-now { margin-top: 0.5rem; }

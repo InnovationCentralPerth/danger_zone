@@ -27,7 +27,7 @@
     </div>
 
     <div class="partners">
-      <span class="strip-label d-none d-lg-inline">Powered by</span>
+      <span class="strip-label d-none d-lg-inline">Partners</span>
       {% for p in partners %}
         {% if p.href %}<a href="{{ p.href }}" target="_blank" rel="noopener" class="partner-tile" title="{{ p.name }}">{% else %}<span class="partner-tile" title="{{ p.name }}">{% endif %}
           {% if p.logo %}<img src="{{ p.logo }}" alt="{{ p.name }}" class="partner-logo partner-logo-{{ p.key }}"/>{% else %}<span class="partner-wordmark">{{ p.name }}</span>{% endif %}

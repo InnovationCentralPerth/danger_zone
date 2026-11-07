@@ -73,7 +73,7 @@ async def test_dashboard_powered_by_strip_and_status_bar():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         r = await ac.get("/")
     html = r.text
-    assert "Powered by" in html
+    assert "Partners" in html
     assert 'src="/static/img/partners/meraki.png"' in html
     assert 'src="/static/img/partners/splunk.png"' in html
     assert 'src="/static/img/partners/niin.png"' in html

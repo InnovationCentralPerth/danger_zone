@@ -23,13 +23,14 @@ _ASSET_FILES = (Path("static/js/main.js"), Path("static/css/main.css"))
 _PARTNER_DIR = Path("static/img/partners")
 _PARTNER_EXTS = ("svg", "png", "webp", "jpg", "jpeg")
 
-# "Powered by" partners, in display order. A logo is picked up automatically from
+# "Partners", in display order. A logo is picked up automatically from
 # static/img/partners/<key>.<ext>; with no file the tile falls back to the plain
 # product name rather than a broken image.
 _PARTNERS = (
     {"key": "meraki", "name": "Cisco Meraki", "href": "https://meraki.cisco.com/"},
     {"key": "splunk", "name": "Splunk", "href": "https://www.splunk.com/"},
     {"key": "niin", "name": "NIIN Sovereign Cloud", "href": None},
+    {"key": "victory", "name": "Victory Metals", "href": None},
 )
 
 
