@@ -208,6 +208,8 @@ agents and the real VLM.
 - [ ] Laptop fallback tested, or explicitly dropped from the plan.
 - [ ] Backup taken to the laptop (see *Backup and restore*) and the archive opens.
 - [ ] Poster file copied to the tablet and opens offline (both orientations).
+- [ ] AI egress rule in place: `sudo scripts/ai_egress.sh test` says *egress blocked* and the AI answers
+      (the rule does not survive a reboot; re-run `sudo scripts/ai_egress.sh apply` if it says NOT ACTIVE).
 
 ## Ten-minute demo click path
 
