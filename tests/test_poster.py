@@ -148,7 +148,8 @@ def test_data_panel_states_only_what_was_measured(html):
     for fact in (
         "919-byte",
         "blocked from making outside connections",
-        "7 Nov 2026",
+        "on 6 Nov, before the block",
+        "On 7 Nov, with the block on",
         "NIIN Sovereign Cloud",
     ):
         assert fact in html, fact
