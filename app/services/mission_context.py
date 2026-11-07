@@ -106,7 +106,7 @@ PPE rules:
 - Each item in required_items must be a short, lowercase, visually-identifiable
   PPE item (e.g. "hard hat", "safety goggles", "safety glasses", "hi-vis vest",
   "steel-toe boots", "anti-static wrist strap", "respirator mask",
-  "cut-resistant gloves").
+  "cut-resistant gloves", "hearing protection").
 - Preserve the user's own wording when they name a specific item. In particular,
   "safety goggles" must stay "safety goggles" (not "safety glasses"); goggles and
   glasses are visually distinct and the demo checks for goggles.

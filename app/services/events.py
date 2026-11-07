@@ -29,6 +29,10 @@ _CANON_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("boot",), "safety boots"),
     (("respirator", "mask"), "respirator"),
     (("wrist", "strap"), "wrist strap"),
+    (
+        ("hearing", "earmuff", "ear muff", "earplug", "ear plug", "ear defender"),
+        "hearing protection",
+    ),
 )
 
 

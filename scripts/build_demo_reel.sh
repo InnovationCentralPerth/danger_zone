@@ -13,6 +13,7 @@
 # A clip with trim lines contributes only those segments (seconds); a clip with
 # none is used whole. Use it to cut empty stretches out of the loop.
 #
+# Sources wider than 1920 px (e.g. 4K phone video) are downscaled to 1920 and 10 fps.
 # Clips are re-encoded so mixed sources join cleanly, with a keyframe every second
 # so the dashboard's scrub bar can seek quickly. Originals are untouched.
 set -euo pipefail
@@ -48,7 +49,7 @@ done
 OUT="$DIR/$NAME.mp4"
 TMP="$DIR/.$NAME.building.mp4"
 ffmpeg -v error -y -f concat -safe 0 -i "$LIST" \
-  -vf "$CROP,fps=10" -an -c:v libx264 -preset veryfast -crf 20 \
+  -vf "$CROP,scale='min(iw,1920)':-2,fps=10" -an -c:v libx264 -preset veryfast -crf 20 \
   -g 10 -keyint_min 10 -sc_threshold 0 \
   -pix_fmt yuv420p -movflags +faststart "$TMP"
 mv "$TMP" "$OUT"

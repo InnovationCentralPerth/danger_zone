@@ -425,7 +425,9 @@ window.POSTER = __POSTER_JSON__;
   }
   PANELS.hero = { title: 'Same moment, different mission', sub: '03 · ★', render(el) {
     let mom = heroMoment, cur = null;
+    const groups = [...new Map(P.moments.map((m) => [m.group, m.group_label])).entries()];
     el.innerHTML = `<div class="cols"><div>
+        ${groups.length > 1 ? '<div class="chiprow" id="groups"><span class="k">Scene</span></div>' : ''}
         <div class="moments" id="moments"></div>
         <div class="stage" id="stage"><img id="himg" alt="Camera frame"/><div class="zone-left" id="zl" hidden></div>
           <span class="pill mute badge">Recorded frame · replayed footage</span></div>
@@ -434,13 +436,24 @@ window.POSTER = __POSTER_JSON__;
         <div class="verdict card" id="verdict"></div>
       </div></div>`;
     const moments = $('#moments', el), himg = $('#himg', el), stage = $('#stage', el), zl = $('#zl', el), chips = $('#chips', el), verdict = $('#verdict', el);
-    P.moments.forEach((m) => {
-      const b = h(`<button class="moment" type="button" data-id="${m.id}"><img alt="" src="${m.imageData}"/><span>${esc(m.title)}</span></button>`);
-      b.addEventListener('click', () => { mom = m; draw(true); });
-      moments.appendChild(b);
+    const groupsRow = $('#groups', el);
+    const showGroup = (g) => {
+      moments.innerHTML = '';
+      P.moments.filter((m) => m.group === g).forEach((m) => {
+        const b = h(`<button class="moment" type="button" data-id="${m.id}"><img alt="" src="${m.imageData}"/><span>${esc(m.title)}</span></button>`);
+        b.addEventListener('click', () => { mom = m; draw(true); });
+        moments.appendChild(b);
+      });
+    };
+    if (groupsRow) groups.forEach(([g, label]) => {
+      const c = h(`<button class="mchip" type="button" data-group="${g}">${esc(label)}</button>`);
+      c.addEventListener('click', () => { if (mom.group !== g) { mom = P.moments.find((m) => m.group === g); showGroup(g); draw(true); } });
+      groupsRow.appendChild(c);
     });
+    showGroup(mom.group);
     function draw(resetMission) {
       moments.querySelectorAll('.moment').forEach((b) => b.classList.toggle('on', b.dataset.id === mom.id));
+      if (groupsRow) groupsRow.querySelectorAll('.mchip').forEach((c) => c.classList.toggle('on', c.dataset.group === mom.group));
       himg.src = mom.imageData;
       const ppe = mom.missions.filter((x) => x.kind === 'ppe'), zones = mom.missions.filter((x) => x.kind === 'zone');
       if (resetMission || !cur || !mom.missions.find((x) => x.id === cur.id)) cur = ppe.find((x) => x.id === 'all3') || ppe[0];
@@ -451,7 +464,7 @@ window.POSTER = __POSTER_JSON__;
           c.addEventListener('click', () => { cur = x; draw(false); }); r.appendChild(c); });
         chips.appendChild(r);
       };
-      row('PPE', ppe, false); row('Zones', zones, true);
+      row('PPE', ppe, false); if (zones.length) row('Zones', zones, true);
       const v = verdictFor(cur);
       stage.className = 'stage ' + v.cls; zl.hidden = cur.id !== 'zone-left';
       const itemsHtml = v.items.length ? `<div class="items">${v.items.map((i) => `<div class="item"><span>${esc(cap(i.name))}</span>
@@ -547,11 +560,12 @@ window.POSTER = __POSTER_JSON__;
 
   /* lessons */
   PANELS.lessons = { title: 'What we learned', sub: '07', render(el) {
+    const E = P.woodshop_eval;
     el.innerHTML = `<p class="lead">Four things that surprised us, and what we did about them.</p>
       <div class="lessons">
         <div class="card"><h3>1 · Cloud snapshots aren’t video</h3><p>The Meraki cloud API hands back a still roughly every 10 seconds. Real video needs the camera’s RTSP stream, which stays on the site’s own network.</p></div>
         <div class="card"><h3>2 · So we built an honest replay mode</h3><p>Recorded footage plays on a loop and is always badged <b style="color:var(--warn)">REPLAY</b>. The footage is recorded; the analysis of every frame is live.</p></div>
-        <div class="card"><h3>3 · Distance limits detail</h3><p>Hard hats and vests read well across a room. Goggles need the person fairly close to the camera, so we don’t pretend otherwise.</p></div>
+        <div class="card"><h3>3 · Distance and detail limit what it sees</h3><p>Hard hats and vests read well across a room. Goggles need the person fairly close to the camera.${E ? ` In our woodshop test it judged <b>${E.item_correct} of ${E.item_judgments}</b> safety-glasses, hearing-protection and respirator checks correctly (${Math.round(100 * E.item_correct / E.item_judgments)}%, ${E.frames_judged} frames, ${E.frames_all_correct} fully right). The misses were clear glasses or earmuffs when the head had turned away, so in the full-kit frame we left out the glasses-only question, which it gets wrong. We don’t pretend otherwise.` : ''}</p></div>
         <div class="card"><h3>4 · The AI shouldn’t do the counting</h3><p>Early on the model would happily say “no one” beside a count of 35. Now a database counts, the model only words it, and unsupported numbers are discarded.</p></div>
       </div>`;
   } };

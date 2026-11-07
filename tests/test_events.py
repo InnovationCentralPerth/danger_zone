@@ -80,3 +80,14 @@ def test_representative_prefers_a_snapshot_and_high_confidence():
     c["snapshot_path"] = None
     (ev,) = group_events([a, b, c])
     assert ev.representative()["id"] == 2
+
+
+def test_hearing_protection_and_respirator_are_first_class_items():
+    for name in ("Hearing protection", "ear muffs", "earplugs", "ear defenders", "Earmuffs"):
+        assert canonical_item(name) == "hearing protection", name
+    assert canonical_item("respirator mask") == "respirator"
+    assert canonical_item("dust mask") == "respirator"
+    assert canonical_item("safety glasses") == "safety glasses"  # unchanged
+    ok = {"id": 1, "type": "PPE_OK", "camera_id": "A", "created_at": T0, "summary": "",
+          "snapshot_path": None, "extra": {"required_items": ["hearing protection"]}}  # fmt: skip
+    assert incident_items(ok) == {"hearing protection"}

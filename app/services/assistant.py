@@ -62,6 +62,8 @@ _COVERAGE_LIKE = {
     "safety goggles": ["%goggle%"],
     "safety glasses": ["%glasses%"],
     "gloves": ["%glove%"],
+    "hearing protection": ["%hearing%", "%earmuff%", "%ear muff%", "%earplug%"],
+    "respirator": ["%respirator%", "%dust mask%"],
 }
 
 

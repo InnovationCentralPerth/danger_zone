@@ -50,17 +50,39 @@ def test_poster_data_is_real_recorded_output(html):
     m = re.search(r"window\.POSTER = (\{.*?\});\n</script>", html, re.S)
     data = json.loads(m.group(1).replace("<\\/", "</"))
     assert data["model"] and data["recorded_at"]
-    assert [x["id"] for x in data["moments"]] == ["a", "b", "c"]
+    assert [x["id"] for x in data["moments"]] == ["a", "b", "c", "w1", "w2", "w3", "w4"]
     for moment in data["moments"]:
         assert moment["imageData"].startswith("data:image/jpeg;base64,")
         kinds = {x["kind"] for x in moment["missions"]}
-        assert kinds == {"ppe", "zone"}
+        # Bench frames have zone rules too; the woodshop ladder is PPE only.
+        assert kinds == ({"ppe"} if moment["group"] == "woodshop" else {"ppe", "zone"})
         assert all(x["latency_ms"] > 0 for x in moment["missions"])
     assert len(data["parses"]) == 3 and len(data["asks"]) == 3
     assert data["linkedin"] == "https://www.linkedin.com/company/18071579/"
     # The honest-limits rule: the unreliable workshop goggles result is not offered.
     workshop = next(x for x in data["moments"] if x["id"] == "c")
     assert "goggles" not in {x["id"] for x in workshop["missions"]}
+
+
+def test_woodshop_results_are_honest_and_measured(html):
+    m = re.search(r"window\.POSTER = (\{.*?\});\n</script>", html, re.S)
+    data = json.loads(m.group(1).replace("<\\/", "</"))
+    # The recorded verdicts on the four poster frames match what is really worn.
+    worn = {
+        "w1": set(),
+        "w2": {"hearing protection"},
+        "w3": {"safety glasses", "hearing protection"},
+        "w4": {"safety glasses", "hearing protection", "respirator"},
+    }
+    for moment in (x for x in data["moments"] if x["group"] == "woodshop"):
+        for mission in moment["missions"]:
+            assert mission["people"] >= 1
+            for c in mission["checked"]:
+                assert (c["item"] in worn[moment["id"]]) == (c["missing"] == 0), (moment["id"], c)
+    # The measured accuracy is on the poster, including how many judgments were wrong.
+    ev = data["woodshop_eval"]
+    assert 0 < ev["item_correct"] <= ev["item_judgments"] and ev["misses"]
+    assert "glasses-only question" in html and "E.item_correct" in html
 
 
 def test_home_screen_has_the_qr_and_the_new_headline(html):
