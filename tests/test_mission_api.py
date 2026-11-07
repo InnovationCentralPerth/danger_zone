@@ -95,7 +95,7 @@ async def test_post_returns_502_when_llm_returns_no_items():
                 json={"mission": "just generally be safe please"},
             )
     assert r.status_code == 502
-    assert "PPE items" in r.json()["detail"]
+    assert "required items" in r.json()["detail"]
 
 
 async def test_delete_clears_active_context():

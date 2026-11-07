@@ -79,8 +79,14 @@ class AgentContext:
 
 
 _SYSTEM_PROMPT = """\
-You are a workplace safety analyst. Extract the required Personal Protective
-Equipment (PPE) items and any zone rules from the user's instruction.
+You are a workplace safety analyst. Extract the required PPE and clothing items
+and any zone rules from the user's instruction.
+
+"Required items" means anything a person can be SEEN wearing or carrying that the
+site requires: protective equipment (hard hat, goggles, gloves, respirator) AND
+required clothing or footwear (long pants, long sleeves, closed-toe shoes, a
+uniform, a lanyard). A dress-code style rule such as "everyone must wear long
+pants" is a valid required item; never reject it for "not being PPE".
 
 Respond ONLY with a single JSON object of this exact shape:
 
@@ -104,12 +110,17 @@ Zone rules:
 
 PPE rules:
 - Each item in required_items must be a short, lowercase, visually-identifiable
-  PPE item (e.g. "hard hat", "safety goggles", "safety glasses", "hi-vis vest",
+  item (e.g. "hard hat", "safety goggles", "safety glasses", "hi-vis vest",
   "steel-toe boots", "anti-static wrist strap", "respirator mask",
-  "cut-resistant gloves", "hearing protection").
-- Preserve the user's own wording when they name a specific item. In particular,
-  "safety goggles" must stay "safety goggles" (not "safety glasses"); goggles and
-  glasses are visually distinct and the demo checks for goggles.
+  "cut-resistant gloves", "hearing protection", "long pants", "closed-toe shoes",
+  "long-sleeved shirt").
+- Preserve the user's own wording when they name a specific item; never swap it
+  for a different item. "safety goggles" stays "safety goggles" (not "safety
+  glasses"), "closed-toe shoes" stays "closed-toe shoes" (not "steel-toe boots"),
+  "long pants" stays "long pants". Goggles and glasses are visually distinct and
+  the demo checks for goggles.
+- Convert a negative into the required item: "no shorts allowed" -> "long pants",
+  "no open-toe shoes" -> "closed-toe shoes".
 - Maximum 5 items.
 - If the user describes a work setting but names no specific items AND gives no
   zone rules, infer the most common PPE for that setting (e.g. electronics lab
@@ -241,10 +252,12 @@ async def set_context(natural_language: str) -> AgentContext:
     items, note, sev = _sanitise_parsed(result.parsed)
     zone_rules = _sanitise_zone_rules(result.parsed)
     if not items and not zone_rules:
+        why = note.rstrip(". ")
         raise VLMError(
-            "Could not extract any PPE items or zone rules from the instruction. "
-            "Try naming the items explicitly (e.g. 'safety glasses and gloves') "
-            "or describe an area (e.g. 'nobody near the bench')."
+            "Could not extract any required items or zone rules from the instruction"
+            + (f" (the model said: {why}). " if why else ". ")
+            + "Try naming the items explicitly (e.g. 'safety glasses and gloves', "
+            "'long pants') or describe an area (e.g. 'nobody near the bench')."
         )
 
     ctx = AgentContext(

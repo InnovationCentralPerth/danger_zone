@@ -216,3 +216,37 @@ async def test_set_context_accepts_zone_only_mission():
     assert ctx.required_items == []
     assert ctx.zone_rules == ["Nobody near the bench"]
     assert mission_context.get_context().zone_rules == ["Nobody near the bench"]
+
+
+def test_prompt_accepts_clothing_and_keeps_the_users_wording():
+    # "everyone should be wearing long pants" was refused as "not PPE"; dress-code rules are
+    # valid required items, and the parser must not swap one item for another.
+    p = mission_context._SYSTEM_PROMPT.lower()
+    assert "never reject it for" in p and "long pants" in p
+    assert "closed-toe shoes" in p and "not" in p and "steel-toe boots" in p
+    assert '"no shorts allowed" -> "long pants"' in p
+
+
+async def test_refusal_error_includes_what_the_model_said():
+    refusal = {"required_items": [], "zone_rules": [], "context_note": "Not a safety rule."}
+    mock_provider = MagicMock()
+    mock_provider.complete = AsyncMock(return_value=_vlm_parse_result(refusal))
+    with (
+        patch("app.services.mission_context.get_provider", return_value=mock_provider),
+        pytest.raises(vlm.VLMError, match="the model said: Not a safety rule"),
+    ):
+        await mission_context.set_context("the weather is nice")
+
+
+async def test_clothing_mission_is_accepted():
+    ok = {
+        "required_items": ["long pants"],
+        "zone_rules": [],
+        "context_note": "Dress code.",
+        "severity_hint": "low",
+    }
+    mock_provider = MagicMock()
+    mock_provider.complete = AsyncMock(return_value=_vlm_parse_result(ok))
+    with patch("app.services.mission_context.get_provider", return_value=mock_provider):
+        ctx = await mission_context.set_context("everyone should be wearing long pants")
+    assert ctx.required_items == ["long pants"]
