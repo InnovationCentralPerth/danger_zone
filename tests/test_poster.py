@@ -140,3 +140,17 @@ def test_dashboard_links_back_to_the_poster():
 
     page = TestClient(app).get("/").text
     assert 'id="poster-link"' in page and "/static/poster/safety-sentry-poster.html" in page
+
+
+def test_data_panel_states_only_what_was_measured(html):
+    assert "Where your data goes" in html
+    # the measured facts, not absolutes
+    for fact in (
+        "919-byte",
+        "blocked from making outside connections",
+        "7 Nov 2026",
+        "NIIN Sovereign Cloud",
+    ):
+        assert fact in html, fact
+    for banned in ("no outbound connections", "no route to the internet", "air-gapped"):
+        assert banned not in html.lower(), banned

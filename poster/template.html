@@ -57,6 +57,7 @@ h1, h2, h3, p { margin: 0; }
 @keyframes nudge { 50% { transform: translateX(.35rem); } }
 @media (prefers-reduced-motion: reduce) { .tile.cta.link .arrow { animation: none; } }
 
+.facts { margin: 0; padding-left: 1.1rem; font-size: .95rem; line-height: 1.4; color: #cfd6e4; } .facts li { margin-bottom: .45rem; }
 /* presenter notes: off unless the page is opened with #notes */
 .notesbtn { position: fixed; right: .8rem; bottom: .8rem; z-index: 60; padding: .5rem 1rem; border-radius: 999px;
   background: rgba(139,149,168,.2); border: 1px solid var(--line2); font-size: .8rem; font-weight: 700; letter-spacing: .06em; color: var(--text); backdrop-filter: blur(6px); }
@@ -214,7 +215,7 @@ h1, h2, h3, p { margin: 0; }
 .node.next.on { border-color: var(--warn); }
 .arrow { align-self: center; color: var(--accent2); font-size: 1.1rem; flex: none; animation: nudge 1.6s infinite; }
 @keyframes nudge { 50% { transform: translateX(3px); opacity: .6; } }
-@media (orientation: portrait) { .flow { flex-direction: column; } .arrow { transform: rotate(90deg); animation: none; } .node { min-width: 0; } }
+@media (orientation: portrait) { .flow { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; } .flow .arrow { display: none; } .node { min-width: 0; padding: .6rem .5rem; } }
 .detail { min-height: 8rem; }
 .detail p { font-size: 1.15rem !important; line-height: 1.5; }
 .shot { width: 100%; border-radius: 12px; border: 1px solid var(--line2); display: block; }
@@ -530,6 +531,12 @@ window.POSTER = __POSTER_JSON__;
     { k: 'ag', t: 'Mission agents', s: 'PPE · zones', d: 'Agents read the current plain-English mission and judge every frame against it: hard hats, vests, goggles, keep-out zones.' },
     { k: 'inc', t: 'Incidents', s: 'with evidence', d: 'Every finding is saved with the frame, confidence, the mission that produced it, and the moment in the footage.' },
     { k: 'ask', t: 'Ask', s: 'plain English', d: 'Questions about what it has seen. The model plans a query, code does the counting, the model words the answer, and every number is checked against the data.' },
+    { k: 'data', t: 'Where your data goes', s: 'measured', d: `<ul class="facts">
+        <li><b>The AI runs on-site.</b> Cloud AI models are switched off in the software.</li>
+        <li><b>The AI server is blocked from making outside connections</b> by a firewall rule on its host. We tested it: connections to the internet from inside it fail.</li>
+        <li><b>What we measured:</b> on 6 Nov, before the block, over 13 minutes, the only thing that left was a 919-byte anonymous usage report from the serving software: hardware and the model’s architecture name, no frames and no questions. On 7 Nov, with the block on, that report was attempted twice and rejected; no connection was made.</li>
+        <li>Replay mode reads footage from files on the server. With live Meraki cameras, stills are fetched <i>from</i> Meraki’s cloud.</li>
+        <li>Hosted in NIIN Sovereign Cloud, not on-premise.</li></ul>` },
     { k: 'spl', t: 'Splunk', s: 'next', next: true, d: 'Next: stream every incident into Splunk for search, dashboards and alerting alongside the rest of the operation’s data.' },
   ];
   PANELS.how = { title: 'How it works', sub: '04', render(el) {
@@ -676,7 +683,7 @@ window.POSTER = __POSTER_JSON__;
         'Tap the Vision AI step to explain where it runs: two H100 GPUs in NIIN Sovereign Cloud.'],
       point: ['The “Model card” button on Vision AI shows the exact model.'],
       avoid: ['If asked which model: answer plainly. Tap Model card and read it out, then say it is open weights, running on our own GPUs. Don’t deflect.',
-        'Say “no frame leaves the site”. Only say “the AI server has no route to the internet” once the runbook’s egress check is ticked.',
+        'Data: use the “Where your data goes” step; it is only what we measured. Say “the AI server is blocked from making outside connections” only if today’s pre-flight egress test passed (sudo scripts/ai_egress.sh test).',
         'Don’t say it is on-premise. It is in NIIN Sovereign Cloud.'] },
     ask: {
       say: ['“You can ask it about what it has seen, in plain English.”',

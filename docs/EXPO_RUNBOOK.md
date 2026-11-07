@@ -292,8 +292,11 @@ wins. On the big screen:
   frames and questions don't leave the server (measured in a 13-minute capture on 6 Nov: the
   only outbound traffic was a small anonymous usage report from the serving software, under
   1 KB every 10 minutes).
-- **Don't say:** "the AI server has no outbound connections / no internet" until the
-  egress check has been re-run clean after hardening (see *Which model is that?*).
+- **Say** "the AI server is blocked from making outside connections" **only if** today's
+  pre-flight `sudo scripts/ai_egress.sh test` passed (see *Data leaving the building*).
+  **Don't say** "no outbound connections at all": the rest of the VM does talk out (Meraki
+  API, Tailscale), and the serving software tries to send its usage report until it is
+  restarted with telemetry off.
 - **Which model?** Answer directly, see below. Never deflect.
 - **Accuracy:** never say it is perfect. Woodshop PPE: 78 of 81 checks right; clear glasses
   and earmuffs with the head turned away are the misses. Goggles need the person close.
@@ -322,10 +325,37 @@ If someone asks, answer in one calm sentence and don't hedge:
 > GPUs in NIIN Sovereign Cloud. The weights are a file of numbers; they can't make a
 > network connection, and the AI server has no route to the internet."
 
-Only say the last clause once the egress check has been run and the server hardened
-(see *Data leaving the building* below). Do not claim anything about the model's
+Only say the last clause (reword it as "the AI server is blocked from making outside
+connections") while `sudo scripts/ai_egress.sh test` passes (see *Data leaving the
+building* below). Do not claim anything about the model's
 origin that isn't true, and do not deflect. Open weights are the point, and a calm,
 direct answer is the best response to the concern.
+
+## Data leaving the building
+
+What was measured, on the VM that hosts the AI (NIIN Sovereign Cloud):
+
+- **Before any change (6 Nov, 13-minute capture on the container's network bridge):** exactly
+  one outbound event, at the serving software's 10-minute usage report: a DNS lookup then
+  one HTTPS connection to `stats.vllm.ai` (Cloudflare), 919 bytes in total. The local record of
+  what it prepares is hardware, CUDA version, a few settings and the model's architecture
+  name. No prompts, no images; and 919 bytes is far too small to hold a camera frame.
+- **After the firewall rule (7 Nov):** two watches (8 and 9 minutes). Each caught one report
+  attempt: 16 DNS packets to 1.1.1.1 / 8.8.8.8, all rejected at the host, so the software
+  never got an answer and never opened a connection. A control (rule removed) showed the
+  test connections do get out when the rule is off.
+
+Commands (all on the VM, need sudo): `scripts/ai_egress.sh apply | remove | status | test |
+check [MIN]`. `test` is the pre-flight item: it must say *egress blocked* and the AI must
+answer. The rule is **not persistent**: after a reboot `test` says NOT ACTIVE, so re-run
+`apply`.
+
+Still worth doing (restart needed, then re-run `test`): start the vLLM container with
+`VLLM_NO_USAGE_STATS=1`, `DO_NOT_TRACK=1`, `HF_HUB_OFFLINE=1` (also stops the report attempt
+at the source) and publish its port as `127.0.0.1:8000:8000` instead of on all interfaces
+(the API needs a key, but nothing else needs to reach it). With the firewall blocking egress,
+a restart before those variables are set should still come up, since the model is cached under
+`/models/huggingface`, but test it before the expo, not on the day.
 
 ## Backup and restore (what git does not hold)
 
