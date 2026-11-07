@@ -31,6 +31,16 @@ To refresh the dashboard screenshot used in "How it works": `poster/capture_dash
    on Android *screen pinning*. The poster also asks the browser to keep the screen awake.
 3. Android's Back button returns from a panel to the overview.
 
+## Two modes, one file
+
+The last box (09) depends on where the page is opened: from the VM over http (the big
+screen) it is a **Live demo** link and the poster returns to the overview after 60 s idle;
+as a saved file (the roaming tablet) it says "See it live on the big screen". Overrides:
+`#handheld` / `#screen` on the URL. Add `#notes` once to show per-tile presenter notes
+(`NOTES` in `template.html`); `#nonotes` hides them. The saved-file demo address is
+`DEMO_URL` in `build_poster.py` (env var `DEMO_URL` overrides), used only if `#screen` is
+forced on a saved file.
+
 ## Editing
 
 - Content and layout: `poster/template.html` (plain HTML/CSS/JS, no framework).

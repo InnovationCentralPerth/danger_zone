@@ -44,8 +44,32 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---- overview grid ---- */
 .grid { flex: 1 1 auto; min-height: 0; display: grid; gap: .8rem; padding: .85rem 1.1rem;
-  grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); }
-@media (orientation: portrait) { .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); } }
+  grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr) auto; }
+@media (orientation: portrait) { .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr) auto; } }
+.tile.cta { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 1.1rem; padding: .75rem 1.2rem;
+  background: linear-gradient(100deg, rgba(4,159,217,.22), rgba(4,159,217,.06)); border-color: rgba(4,159,217,.7); }
+.tile.cta .num { flex-direction: column; gap: .2rem; min-width: 2.2rem; }
+.tile.cta .ctext { flex: 1 1 auto; min-width: 0; }
+.tile.cta h2 { margin-top: 0; font-size: 1.25rem; }
+.tile.cta .one { font-size: .86rem; }
+.tile.cta .arrow { flex: none; font-size: 2.1rem; font-weight: 800; color: var(--accent2); line-height: 1; }
+.tile.cta.link .arrow { animation: nudge 1.6s ease-in-out infinite; }
+@keyframes nudge { 50% { transform: translateX(.35rem); } }
+@media (prefers-reduced-motion: reduce) { .tile.cta.link .arrow { animation: none; } }
+
+/* presenter notes: off unless the page is opened with #notes */
+.notesbtn { position: fixed; right: .8rem; bottom: .8rem; z-index: 60; padding: .5rem 1rem; border-radius: 999px;
+  background: rgba(139,149,168,.2); border: 1px solid var(--line2); font-size: .8rem; font-weight: 700; letter-spacing: .06em; color: var(--text); backdrop-filter: blur(6px); }
+.notes { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; max-height: 62vh; overflow: auto; padding: 1rem 1.3rem 4rem;
+  background: rgba(7,11,20,.96); border-top: 2px solid var(--warn); box-shadow: 0 -12px 40px rgba(0,0,0,.6); }
+.notes h4 { font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--warn); margin-bottom: .5rem; }
+.notes .ncols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; }
+@media (orientation: portrait) { .notes .ncols { grid-template-columns: 1fr; gap: .6rem; } }
+.notes .nk { font-size: .64rem; letter-spacing: .16em; text-transform: uppercase; font-weight: 800; margin-bottom: .25rem; }
+.notes .nk.say { color: var(--ok); } .notes .nk.point { color: var(--accent2); } .notes .nk.avoid { color: #ff8a95; }
+.notes ul { margin: 0; padding-left: 1.1rem; font-size: .95rem; line-height: 1.4; color: #dbe2ef; }
+.notes li { margin-bottom: .3rem; }
+
 .tile { position: relative; display: flex; flex-direction: column; text-align: left; min-height: 0; overflow: hidden;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: .9rem 1rem;
   transition: transform .12s ease, border-color .15s ease, background .15s ease; }
@@ -313,8 +337,28 @@ window.POSTER = __POSTER_JSON__;
     { id: 'next', n: 8, title: 'What’s next · say hello', one: 'Splunk and live video are next.',
       viz: `<div class="qrtile"><div class="qrbox">${QR_SVG}</div><div class="qrtext">Scan to reach<br>Innovation Central Perth<small>on LinkedIn</small></div></div>` },
   ];
+  /* How this copy of the poster is being used:
+       screen   = served from the VM (the big screen): the last box opens the live demo, and the
+                  poster returns to the overview after a minute of nobody touching it;
+       handheld = saved file on the roaming tablet: the last box points people to the big screen. */
+  const HASH = location.hash.toLowerCase();
+  const MODE = HASH.includes('handheld') ? 'handheld' : HASH.includes('screen') ? 'screen' : (/^https?:$/.test(location.protocol) ? 'screen' : 'handheld');
+  const DEMO_URL = /^https?:$/.test(location.protocol) ? location.origin + '/' : P.demo_url;
+  if (HASH.includes('notes')) localStorage.setItem('ss.notes', '1');
+  if (HASH.includes('nonotes')) localStorage.removeItem('ss.notes');
+  const NOTES_ON = localStorage.getItem('ss.notes') === '1';
   const grid = $('#grid');
+  TILES.push({ id: 'demo', n: 9, cta: true, title: MODE === 'screen' ? 'Live demo' : 'See it live on the big screen',
+    one: MODE === 'screen' ? 'Open the running system: cameras, missions, Ask. Replayed footage, live analysis.' : 'The running system is on the big screen. Walk over and we’ll show you.' });
   TILES.forEach((t) => {
+    if (t.cta) {
+      const el = h(`<button class="tile cta${MODE === 'screen' ? ' link' : ''}" type="button" data-id="demo">
+        <div class="num"><span>09</span></div><div class="ctext"><h2>${t.title}</h2><div class="one">${t.one}</div></div>
+        <span class="arrow">${MODE === 'screen' ? '▶' : '→'}</span></button>`);
+      el.addEventListener('click', () => { if (MODE === 'screen') location.href = DEMO_URL; else openPanel('demo'); });
+      grid.appendChild(el);
+      return;
+    }
     const el = h(`<button class="tile${t.star ? ' star' : ''}" type="button" data-id="${t.id}">
       <div class="num"><span>${String(t.n).padStart(2, '0')}</span>${t.star ? '<span class="star-tag">★ Try this</span>' : ''}</div>
       <h2>${t.title}</h2><div class="viz">${t.viz}</div><div class="one">${t.one}</div><div class="go">Tap to explore ›</div></button>`);
@@ -334,11 +378,12 @@ window.POSTER = __POSTER_JSON__;
     const pc = h('<div class="pc"></div>'); pbody.appendChild(pc);
     def.render(pc);
     panel.hidden = false;
+    showNotes(id);
     if (!fromPop) history.pushState({ panel: id }, '');
   }
   function closePanel(fromPop) {
     if (panel.hidden) return;
-    clearTimers(); panel.hidden = true;
+    clearTimers(); panel.hidden = true; showNotes('overview');
     if (!fromPop && history.state && history.state.panel) history.back();
   }
   $('#back').addEventListener('click', () => closePanel(false));
@@ -584,6 +629,102 @@ window.POSTER = __POSTER_JSON__;
         <div class="words"><b>Want this on your site?</b><p class="sub" style="margin-top:0">Find Innovation Central Perth on LinkedIn: scan the code, or ask us to show you the live system.</p>
         <p class="sub">Innovation Central Perth is a partnership between Curtin University and Cisco.</p></div></div>`;
   } };
+
+
+  /* the last box on a handheld copy: where to see the live system */
+  PANELS.demo = { title: 'Live demo', sub: '09', render(el) {
+    el.innerHTML = `<p class="lead">The running system is on the big screen.</p>
+      <p class="sub">Everything on this poster was recorded from it. On the screen you can see it work, and change what it is looking for.</p>
+      <div class="lessons">
+        <div class="card"><h3>Cameras</h3><p>Replayed footage from Innovation Central Perth and a woodshop. Always badged REPLAY. Scrub the video or loop a moment.</p></div>
+        <div class="card"><h3>Missions</h3><p>Type what to look for, in plain English, and watch the verdicts and incidents change within seconds.</p></div>
+        <div class="card"><h3>Ask</h3><p>Ask what it has seen: “Was anyone not wearing hearing protection?”</p></div>
+        <div class="card"><h3>On-site</h3><p>Analysed by an open-weight model on GPUs in NIIN Sovereign Cloud. Nothing goes to a public cloud AI.</p></div>
+      </div>
+      <p class="rec" style="margin-top:1.1rem">Walk over and we’ll show you.</p>`;
+  } };
+
+  /* ---------------- presenter notes (only with #notes in the address) ---------------- */
+  const NOTES = {
+    overview: {
+      say: ['“Most sites have cameras. Very few have anyone watching them. Let me show you what we built about that.”',
+        'Talk through tiles 1–7 in order, about 30 seconds each. Tile 8 is how to reach us. Tile 9 is the big screen.',
+        'It is internal: Cisco and Curtin colleagues. Keep it conversational.'],
+      point: ['The partner logos at the top: Meraki cameras, Splunk (next), NIIN (hosting), Innovation Central Perth.',
+        'Tile 3 has the star. If time is short, do 1, 3, then 9.'],
+      avoid: ['Don’t call anything live on this tablet: every frame here is recorded footage.', 'Don’t tap tile 9 on the handheld. Walk them to the big screen.'] },
+    problem: {
+      say: ['“These are real frames from our own Meraki cameras. Footage like this piles up faster than anyone can watch it.”',
+        '“And what counts as unsafe changes: a hard hat here, goggles there, a keep-out zone only while a crane lifts.”'],
+      point: ['The camera wall: quiet moment and a busy one for each camera.'],
+      avoid: ['Don’t say existing detectors are bad. They are fast and fixed; this one is flexible.'] },
+    idea: {
+      say: ['“You just tell it what to look for, in plain English. No retraining, no code.”',
+        `“The on-site model turns the sentence into checks in about ${(parseLat / 1000).toFixed(1)} seconds.”`],
+      point: ['The three examples: items, a keep-out zone, and a mixed mission.'],
+      avoid: ['Don’t say it understands anything you type. Next panels show where it struggles.'] },
+    hero: {
+      say: ['“Same frame, same moment. Watch the verdict change as I change the mission.”',
+        'Switch Scene to Woodshop: same person, same saw, more protection each time. Tap “All three” on each.',
+        '“These are results recorded from the running system, with the real time it took.”'],
+      point: ['“All three” on the first frame is a violation, on the full-kit frame it is compliant.',
+        'The recorded time per verdict, about a second or two.'],
+      avoid: ['Don’t say it is perfect. The last Lessons card gives the measured woodshop accuracy.',
+        'On the full-kit frame the glasses-only chip is left out on purpose, because it gets that one wrong. Say so if asked.'] },
+    how: {
+      say: ['“Meraki cameras, a frame about once a second, an on-site vision model, agents that judge each frame against the mission, and every finding saved with evidence.”',
+        'Tap the Vision AI step to explain where it runs: two H100 GPUs in NIIN Sovereign Cloud.'],
+      point: ['The “Model card” button on Vision AI shows the exact model.'],
+      avoid: ['If asked which model: answer plainly. Tap Model card and read it out, then say it is open weights, running on our own GPUs. Don’t deflect.',
+        'Say “no frame leaves the site”. Only say “the AI server has no route to the internet” once the runbook’s egress check is ticked.',
+        'Don’t say it is on-premise. It is in NIIN Sovereign Cloud.'] },
+    ask: {
+      say: ['“You can ask it about what it has seen, in plain English.”',
+        '“The model plans the question, a database does the counting, the model words the answer, and every number is checked against the data.”'],
+      point: ['The example where it says “I wasn’t checking for that. Want me to start?”: it admits what it didn’t look at.'],
+      avoid: ['Don’t say it never gets things wrong. The checking is there because it once did.'] },
+    numbers: {
+      say: [`“About ${latMed.toFixed(1)} seconds per frame; many cameras at once on the same hardware.”`,
+        '“These are measured on this system, not a spec sheet.”'],
+      point: ['The load-test figures and the recorded question times.'],
+      avoid: ['Don’t compare with other products or claim a benchmark. It is one system, measured once.'] },
+    lessons: {
+      say: ['“We learned some honest things.” Read the four cards; they are the most credible part of the poster.',
+        `Card 3: woodshop accuracy ${P.woodshop_eval.item_correct} of ${P.woodshop_eval.item_judgments} checks. Clear glasses and earmuffs with the head turned away are the misses.`],
+      point: ['The measured numbers on card 3.'],
+      avoid: ['Don’t skip card 3 or round it up. The honesty is the point.'] },
+    next: {
+      say: ['“Next: every incident searchable in Splunk, and live video from the lab over a camera relay.”',
+        'Hand over the QR: it goes to the Innovation Central Perth LinkedIn page.'],
+      point: ['The Now / Next / Later columns.'],
+      avoid: ['Splunk is next, not built. Don’t imply an integration exists.', 'Live video is not working yet: the cameras’ video stream isn’t reachable from the server. The demo uses replay.'] },
+    demo: {
+      say: ['“The running system is on the big screen. Let me walk you over.”'],
+      point: ['Before you go: check the big screen has the intended mission and a cleared feed (runbook: Reset the demo).'],
+      avoid: ['Don’t open the live demo from the handheld tablet. Walking over is the point.'] },
+  };
+  const notesBtn = h('<button class="notesbtn" type="button" hidden>Notes</button>');
+  const notesBox = h('<aside class="notes" hidden></aside>');
+  document.body.append(notesBtn, notesBox);
+  let notesOpen = false, notesFor = 'overview';
+  function showNotes(id) {
+    notesFor = id; if (!NOTES_ON) return;
+    notesBtn.hidden = false;
+    const n = NOTES[id] || NOTES.overview;
+    const list = (k, label, arr) => `<div><div class="nk ${k}">${label}</div><ul>${(arr || []).map((x) => `<li>${x}</li>`).join('')}</ul></div>`;
+    notesBox.innerHTML = `<h4>Presenter notes · ${id === 'overview' ? 'overview' : esc(PANELS[id].title)}</h4><div class="ncols">${list('say', 'Say', n.say)}${list('point', 'Point at', n.point)}${list('avoid', 'Careful', n.avoid)}</div>`;
+    notesBox.hidden = !notesOpen; notesBtn.textContent = notesOpen ? 'Hide notes' : 'Notes';
+  }
+  notesBtn.addEventListener('click', () => { notesOpen = !notesOpen; showNotes(notesFor); });
+  showNotes('overview');
+
+  /* big-screen copy only: back to the overview after a minute with nobody touching it */
+  if (MODE === 'screen') {
+    let idle = null;
+    const arm = () => { clearTimeout(idle); idle = setTimeout(() => { notesOpen = false; if (!panel.hidden) closePanel(false); showNotes('overview'); window.scrollTo(0, 0); }, 60000); };
+    ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'].forEach((ev) => document.addEventListener(ev, arm, { passive: true }));
+    arm();
+  }
 
   // Restore a panel if the page was reloaded on one (history state) — otherwise start at the overview.
   history.replaceState(null, '');

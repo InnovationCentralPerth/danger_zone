@@ -746,3 +746,4 @@ a.partner-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(
 
 .model-card { margin-top: .45rem; font-size: .72rem; line-height: 1.4; color: var(--muted); }
 .ops-menu .model-card { text-transform: none; letter-spacing: 0; }
+.ops-poster { margin-right: .4rem; padding: .2rem .6rem; font-weight: 600; text-decoration: none; }

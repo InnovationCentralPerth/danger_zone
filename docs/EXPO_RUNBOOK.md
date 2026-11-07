@@ -247,15 +247,64 @@ agents and the real VLM.
   each card. Say this out loud if someone asks why a tile that is not on screen
   has incidents.
 
+## The stand: poster for the story, big screen for the demo
+
+Two copies of the **same poster file** do different jobs, and it works out which by where
+it was opened:
+
+| Copy | Where | What the last box (09) does |
+|---|---|---|
+| **Handheld** | Saved file on the roaming tablet (`file://...`), or any copy opened with `#handheld` | "See it live on the big screen": opens a short panel, no network needed. Nothing here can change the live demo. |
+| **Big screen** | One tab in the screen's tab cycle, opened from `http://xenterm-wl180:8001/static/poster/safety-sentry-poster.html` | "Live demo": opens the running dashboard in the same tab. The dashboard has a **← Poster** button to come back. After 60 s with nobody touching it the poster returns to the overview. |
+
+Open a copy with `#notes` on the end (once; the browser remembers) and a **Notes** button
+appears bottom-right: *Say / Point at / Careful* for whichever tile is open, so colleagues
+give the same answers. It is hidden from visitors by default; `#nonotes` turns it off.
+Overrides if it guesses wrong: `#handheld` or `#screen`.
+
+**How a walk-through goes** (about 5 minutes; tile order is the story): 01 problem, 02 the
+idea, **03 same moment, different mission** (switch Scene to *Woodshop* and tap *All
+three* on each frame), 04 how it works, 05 Ask, 06 numbers, 07 lessons, 08 QR. Then:
+"the real thing is on the big screen, let me walk you over", and run the cue sheet there.
+If time is short: 01, 03, then the big screen.
+
+### Reset the demo (one minute, before each group and whenever it has drifted)
+
+Several people and the presenter's laptop share one live mission, and whoever sets it last
+wins. On the big screen:
+
+- [ ] Poster tab is on the overview (it returns by itself after 60 s idle).
+- [ ] Dashboard: set the intended mission (e.g. *Hard hat + vest*, or *Woodshop kit* for the
+      woodshop cameras), then press **Clear feed** so counts start from now.
+- [ ] Camera tile says REPLAY and is playing; scrub bar near the start of the moment you
+      want to show.
+- [ ] Agents both *active*; status bar AI says *Open-weight VLM · 235B (local, 2×H100)*.
+- [ ] Tell the team who is allowed to change the mission right now.
+
+### Say / don't say (everyone, every time)
+
+- **Say:** "Recorded footage, live analysis." Replay is always badged REPLAY.
+- **Say:** Splunk is *next*, not built. Live video from the lab is *next*: the camera video
+  stream isn't reachable from the server yet.
+- **Say:** the AI runs on our own GPUs in NIIN Sovereign Cloud (not "on-premise"). Camera
+  frames and questions don't leave the server (measured in a 13-minute capture on 6 Nov: the
+  only outbound traffic was a small anonymous usage report from the serving software, under
+  1 KB every 10 minutes).
+- **Don't say:** "the AI server has no outbound connections / no internet" until the
+  egress check has been re-run clean after hardening (see *Which model is that?*).
+- **Which model?** Answer directly, see below. Never deflect.
+- **Accuracy:** never say it is perfect. Woodshop PPE: 78 of 81 checks right; clear glasses
+  and earmuffs with the head turned away are the misses. Goggles need the person close.
+- **Faces** in the footage are consented. No other people's footage is used.
+
 ## The poster on the tablet
 
-`poster/dist/safety-sentry-poster.html` is a standalone interactive poster (1 MB, works
+`poster/dist/safety-sentry-poster.html` is a standalone interactive poster (1.8 MB, works
 offline). Copy it to the tablet (USB, Nearby Share, Drive, or open
-`http://xenterm-wl180:8001/static/poster/safety-sentry-poster.html` on the tablet and save
-the page) and open it in Chrome or Fully Kiosk. Both orientations work. Tiles to lead
-with: **03 Same moment, different mission** (tap the mission chips and watch the verdict
-change on the same frame), then **05 Ask it anything**. The LinkedIn QR is in **08**.
-Everything on it is recorded from the live system; rebuild with
+`http://xenterm-wl180:8001/static/poster/safety-sentry-poster.html#handheld` on the tablet
+and save the page) and open it in Chrome or Fully Kiosk. Both orientations work. Tiles to
+lead with: **03 Same moment, different mission**, then **05 Ask it anything**. The LinkedIn
+QR is in **08**. Everything on it is recorded from the live system; rebuild with
 `python poster/record_results.py && python poster/build_poster.py` (see `poster/README.md`).
 
 ## "Which model is that?"

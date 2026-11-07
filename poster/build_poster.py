@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -20,6 +21,8 @@ import segno
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 LINKEDIN = "https://www.linkedin.com/company/18071579/"
+# Where the big screen's live demo lives; used only when the poster is opened as a saved file.
+DEMO_URL = os.environ.get("DEMO_URL", "http://xenterm-wl180:8001/")
 # Real frames for the camera wall (see extract_cctv.py): file stem, on-screen label.
 CCTV = [
     ("demo-quiet", "CAM 01 · DEMO AREA"),
@@ -54,6 +57,7 @@ def main() -> None:
     ]
     results["dashboard"] = data_uri(ROOT / "assets" / "dashboard.webp")
     results["linkedin"] = LINKEDIN
+    results["demo_url"] = DEMO_URL
 
     qr = segno.make(LINKEDIN, error="m").svg_inline(
         omitsize=True, dark="#0b1220", light="#ffffff", border=0

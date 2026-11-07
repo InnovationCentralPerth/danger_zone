@@ -106,3 +106,37 @@ def test_camera_wall_uses_real_frames(html):
     # The feeds are dressed as a monitoring wall: REC badge, camera label, scan-line overlay.
     assert 'class="rec"' in html.replace('\\"', '"') or '<span class="rec">' in html
     assert ".feed::before" in html and "repeating-linear-gradient" in html
+
+
+def test_last_box_has_two_modes_and_notes_stay_hidden_by_default(html):
+    # Screen copy opens the live demo, handheld copy only points at the big screen.
+    assert "location.href = DEMO_URL" in html and "See it live on the big screen" in html
+    assert "const MODE =" in html and "handheld" in html and "screen" in html
+    assert "setTimeout(() => {" in html and "60000" in html  # idle return, screen mode only
+    # Presenter notes exist for every tile but are off unless #notes was used.
+    for tile in (
+        "overview",
+        "problem",
+        "idea",
+        "hero",
+        "how",
+        "ask",
+        "numbers",
+        "lessons",
+        "next",
+        "demo",
+    ):
+        assert re.search(rf"\b{tile}: \{{\s*say:", html), tile
+    assert "HASH.includes('notes')" in html and "if (!NOTES_ON) return;" in html
+    # The URL is built in JS from data, never as an http link in the markup.
+    assert re.search(r'"demo_url": "http://[^"]+/"', html)
+    assert "Qwen" not in html.split("window.POSTER")[0] and html.count("Qwen") == 1
+
+
+def test_dashboard_links_back_to_the_poster():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    page = TestClient(app).get("/").text
+    assert 'id="poster-link"' in page and "/static/poster/safety-sentry-poster.html" in page
