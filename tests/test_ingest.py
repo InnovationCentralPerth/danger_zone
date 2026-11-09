@@ -153,6 +153,48 @@ async def test_file_source_decodes_and_loops(tmp_path):
     assert frames[-1].seq == 2
 
 
+def test_seeked_start_is_a_single_pass_but_a_normal_start_loops(tmp_path):
+    # -ss + -stream_loop mis-times every loop pass (ffmpeg then sleeps ~offset seconds at each
+    # wrap with -readrate, long enough to stall the MJPEG stream). A seeked start must not loop.
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"not decoded: only the command line is built here")
+    src = FileSource("cam", str(clip), fps=5, width=160, loop=True)
+    cmd = src._build_command()
+    assert "-stream_loop" in cmd and "-ss" not in cmd
+    src._start_offset = 20.5
+    cmd = src._build_command()
+    assert "-ss" in cmd and "-stream_loop" not in cmd
+    assert src._single_pass is True
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+async def test_seeked_source_keeps_streaming_past_the_end_of_its_pass(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+        "testsrc=duration=3:size=160x120:rate=10", "-pix_fmt", "yuv420p", "-g", "10", str(clip),
+    )  # fmt: skip
+    assert await proc.wait() == 0
+
+    src = FileSource("cam-seek", str(clip), fps=5, width=160, loop=True, speed=8)
+    src.duration = 3.0
+    src._start_offset = 2.0  # as if the viewer scrubbed to 2 s: only ~1 s of footage remains
+    frames: list[Frame] = []
+
+    async def collect() -> None:
+        async for frame in src.stream():
+            frames.append(frame)
+            if len(frames) == 20:  # far more than the ~5 frames left in the seeked pass
+                return
+
+    started = time.monotonic()
+    await asyncio.wait_for(collect(), timeout=30)
+    await src.aclose()
+    assert len(frames) == 20
+    assert src._start_offset == 0.0  # restarted from the top with a normal loop
+    assert time.monotonic() - started < 15  # and without a long stall at the wrap
+
+
 # ---- factory ---------------------------------------------------------------
 
 

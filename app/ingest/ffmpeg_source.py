@@ -77,6 +77,7 @@ class FfmpegFrameSource:
         self._hold_id = 0
         self._refresh_hold = False
         self._restart_now = False
+        self._single_pass = False
         self._wake: asyncio.Event | None = None
 
         # Section looping: while active, ``uri`` points at a short cut clip and
@@ -290,7 +291,11 @@ class FfmpegFrameSource:
 
     def _build_command(self) -> list[str]:
         cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin"]
-        if self.loop or self._loop_range is not None:
+        # -ss combined with -stream_loop mis-times every loop pass: with -readrate ffmpeg then
+        # sleeps ~(start offset) seconds at each wrap, long enough to stall the stream. So a
+        # seeked start plays through ONCE; at its end _stream restarts from 0 with a clean loop.
+        self._single_pass = self._start_offset > 0
+        if (self.loop or self._loop_range is not None) and not self._single_pass:
             cmd += ["-stream_loop", "-1"]
         if self.speed > 0:
             # -readrate paces input in real time (like -re) at a multiplier.
@@ -405,8 +410,14 @@ class FfmpegFrameSource:
             if self._restart_now or self._paused:
                 self._restart_now = False
                 continue
-            if self._closed or not self.loop:
+            if self._closed or not (self.loop or self._loop_range is not None):
                 break
+
+            if self._single_pass:
+                # Planned end of a seeked pass: loop again from the start, no delay.
+                self._start_offset = 0.0
+                self._proc_started = None
+                continue
 
             self._start_offset = 0.0
             logger.warning("Ingest stream for %s ended; restarting in %.1fs", self.camera_id, delay)
