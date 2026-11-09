@@ -73,6 +73,7 @@ def main() -> None:
         "__LOGO_MERAKI__": data_uri(partners / "meraki.png"),
         "__LOGO_SPLUNK__": data_uri(partners / "splunk.png"),
         "__LOGO_NIIN__": data_uri(partners / "niin.png"),
+        "__LOGO_CIDS__": data_uri(partners / "cids.png"),
         "__LOGO_VICTORY__": data_uri(partners / "victory.png"),
         "__QR_SVG__": qr,
         "__POSTER_JSON__": json.dumps(results, ensure_ascii=False).replace("</", "<\\/"),

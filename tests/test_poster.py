@@ -40,6 +40,7 @@ def test_poster_has_the_partner_logos_at_the_top_and_the_qr_code(html):
         "Cisco Meraki",
         "Splunk",
         "National Industry Innovation Network",
+        "Curtin Institute for Data Science",
         "Victory Metals",
     ):
         assert f'alt="{alt}"' in header, alt

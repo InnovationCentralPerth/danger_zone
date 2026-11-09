@@ -30,6 +30,7 @@ _PARTNERS = (
     {"key": "meraki", "name": "Cisco Meraki", "href": "https://meraki.cisco.com/"},
     {"key": "splunk", "name": "Splunk", "href": "https://www.splunk.com/"},
     {"key": "niin", "name": "NIIN Sovereign Cloud", "href": None},
+    {"key": "cids", "name": "Curtin Institute for Data Science", "href": None},
     {"key": "victory", "name": "Victory Metals", "href": None},
 )
 
