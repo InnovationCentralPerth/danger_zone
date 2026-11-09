@@ -156,3 +156,14 @@ async def test_dashboard_has_the_ask_bar_and_answer_sheet():
     # The bar sits under the incident panel in the right-hand column, not floating over it.
     assert html.index('id="ask-form"') > html.index('id="incident-list"')
     assert html.index('id="ask-form"') < html.index("</aside>")
+
+
+def test_dashboard_feeds_are_capped_so_a_long_running_tab_stays_fast():
+    # An all-day expo tab got sluggish: every agent decision was prepended to the reasoning
+    # feed forever, and each one re-scanned every entry. Keep both feeds bounded.
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parent.parent / "static/js/main.js").read_text()
+    assert "const MAX_TRACES = 60;" in js and "const MAX_INCIDENT_CARDS = 80;" in js
+    assert "lastElementChild.remove()" in js
+    assert "MAX_TRACES);" in js and "MAX_INCIDENT_CARDS);" in js

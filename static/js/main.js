@@ -18,13 +18,18 @@ const severityBadge = {
 // Severities that don't bump the red "live incident" counter.
 const NON_ALERT_SEVERITIES = new Set(['INFO']);
 
-function prependTo(containerId, html) {
+// Feeds on a long-lived expo tab must not grow without limit: keep only the newest `max` entries.
+const MAX_TRACES = 60;
+const MAX_INCIDENT_CARDS = 80;
+
+function prependTo(containerId, html, max = 0) {
   const el = document.getElementById(containerId);
   // Only clear if the container is still showing its initial placeholder
   // (a direct-child <p>). Hydrated incident cards contain <p> for the summary,
   // so an unscoped selector would wipe the whole list on the first SSE event.
   if (el.querySelector(':scope > p')) el.innerHTML = '';
   el.insertAdjacentHTML('afterbegin', html);
+  if (max) while (el.children.length > max) el.lastElementChild.remove();
 }
 
 // ---- incident card helpers ------------------------------------------------
@@ -1018,7 +1023,7 @@ evtSource.addEventListener('incident_new', (e) => {
     incidentCount++;
     document.getElementById('incident-count').textContent = incidentCount;
   }
-  prependTo('incident-list', renderIncidentCard(d));
+  prependTo('incident-list', renderIncidentCard(d), MAX_INCIDENT_CARDS);
   applyScope();
   if (isAlert && d.camera_id && d.camera_id === cameraSerial) flashAlert();
 
@@ -1069,7 +1074,7 @@ evtSource.addEventListener('agent_trace', (e) => {
       <span class="ms-1" title="${escapeHtml(d.decision)}">${escapeHtml(prettyDecision(d.decision))}</span>
       <small class="float-end">${ts} · ${d.latency_ms}ms</small>
     </div>
-  `);
+  `, MAX_TRACES);
   applyScope();
   if (d.serial && d.serial === cameraSerial) pulseAiHud(d);
 });
