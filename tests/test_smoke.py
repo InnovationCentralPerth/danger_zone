@@ -211,3 +211,28 @@ def test_latest_snapshot_uses_the_live_ring_and_never_scans_the_whole_tree(tmp_p
     assert r.status_code == 200 and r.content == b"new"
     assert not any(p.endswith("/09") for p in listed)
     config.get_settings.cache_clear()
+
+
+def test_hot_query_columns_are_indexed(tmp_path, monkeypatch):
+    # /incidents/ sorts by created_at on every page load; without an index that is a full-table
+    # sort (400+ ms at 175k rows) on the event loop.
+    import sqlite3
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app import config
+    from app.main import _init_db
+
+    config.get_settings.cache_clear()
+    _init_db()
+    con = sqlite3.connect(tmp_path / "app.db")
+    names = {r[0] for r in con.execute("select name from sqlite_master where type='index'")}
+    assert {
+        "ix_incident_created_at",
+        "ix_incident_camera_created",
+        "ix_agenttrace_agent_created",
+    } <= names
+    plan = con.execute(
+        "explain query plan select * from incident order by created_at desc limit 60"
+    ).fetchall()
+    assert "TEMP B-TREE" not in str(plan)
+    config.get_settings.cache_clear()

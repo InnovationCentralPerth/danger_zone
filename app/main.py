@@ -17,6 +17,23 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 logger = logging.getLogger(__name__)
 
 
+_INDEXES = (
+    # Newest-first lists (dashboard load, API, assistant) used to sort the whole table: 400+ ms and
+    # growing with every incident, on the event loop. create_all() never adds indexes to old tables.
+    "CREATE INDEX IF NOT EXISTS ix_incident_created_at ON incident (created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_incident_camera_created ON incident (camera_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_agenttrace_agent_created ON agenttrace (agent, created_at)",
+)
+
+
+def _ensure_indexes(engine) -> None:  # type: ignore[no-untyped-def]
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        for statement in _INDEXES:
+            conn.execute(text(statement))
+
+
 def _init_db() -> None:
     from sqlmodel import create_engine
 
@@ -26,6 +43,7 @@ def _init_db() -> None:
 
     engine = create_engine(f"sqlite:///{settings.db_path}", echo=settings.debug)
     SQLModel.metadata.create_all(engine)
+    _ensure_indexes(engine)
     # Store engine on app state via a module-level singleton
     from app import db as db_module
 
