@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -79,7 +80,7 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     from app.services.retention import prune_snapshots
 
     async def _prune() -> None:
-        prune_snapshots()
+        await asyncio.to_thread(prune_snapshots)
 
     scheduler.register(3600, _prune)
     await scheduler.start()

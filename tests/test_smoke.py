@@ -167,3 +167,47 @@ def test_dashboard_feeds_are_capped_so_a_long_running_tab_stays_fast():
     assert "const MAX_TRACES = 60;" in js and "const MAX_INCIDENT_CARDS = 80;" in js
     assert "lastElementChild.remove()" in js
     assert "MAX_TRACES);" in js and "MAX_INCIDENT_CARDS);" in js
+
+
+def test_latest_snapshot_uses_the_live_ring_and_never_scans_the_whole_tree(tmp_path, monkeypatch):
+    # The dashboard polls /snapshot/latest constantly; it used to rglob every snapshot ever
+    # taken (1M+ files) on the event loop, which locked up the whole app.
+    import os
+
+    from fastapi.testclient import TestClient
+
+    from app.api import cameras
+    from app.ingest.base import Frame
+    from app.ingest.manager import ingest_manager
+    from app.main import app
+
+    jpeg = b"\xff\xd8\xff\xe0fakejpeg\xff\xd9"
+    frame = Frame(
+        camera_id="CAM-1", seq=1, source_ts=0.0, ingest_ts=0.0, width=1, height=1, jpeg=jpeg
+    )
+    monkeypatch.setattr(
+        ingest_manager, "latest_frame", lambda serial: frame if serial == "CAM-1" else None
+    )
+    client = TestClient(app)
+    r = client.get("/cameras/CAM-1/snapshot/latest")
+    assert r.status_code == 200 and r.content == jpeg and r.headers["content-type"] == "image/jpeg"
+
+    # No ring: newest day folder wins, older days are not listed once a match is found.
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app import config
+
+    config.get_settings.cache_clear()
+    cameras._LATEST_CACHE.clear()
+    old = tmp_path / "snapshots/2026/11/09"
+    new = tmp_path / "snapshots/2026/11/10"
+    old.mkdir(parents=True)
+    new.mkdir(parents=True)
+    (old / "CAM-2_000001_1.jpg").write_bytes(b"old")
+    (new / "CAM-2_000002_2.jpg").write_bytes(b"new")
+    listed: list[str] = []
+    real_scandir = os.scandir
+    monkeypatch.setattr(os, "scandir", lambda p: (listed.append(str(p)), real_scandir(p))[1])
+    r = client.get("/cameras/CAM-2/snapshot/latest")
+    assert r.status_code == 200 and r.content == b"new"
+    assert not any(p.endswith("/09") for p in listed)
+    config.get_settings.cache_clear()

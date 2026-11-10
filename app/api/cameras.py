@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import os
 import time
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
@@ -168,18 +171,65 @@ async def get_camera_zones(serial: str) -> dict:
     return {"serial": serial, "zones": zones}
 
 
-@router.get("/{serial}/snapshot/latest", summary="Get the most recent snapshot file")
-async def get_latest_snapshot(serial: str) -> FileResponse:
-    """Return the newest snapshot on disk for a given camera serial."""
-    settings = get_settings()
-    matches = sorted(
-        settings.snapshots_dir.rglob(f"{serial}_*.jpg"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    if not matches:
+_LATEST_CACHE: dict[str, tuple[float, Path | None]] = {}
+_LATEST_CACHE_SECONDS = 2.0
+
+
+def _newest_snapshot_on_disk(serial: str) -> Path | None:
+    """Newest ``{serial}_*.jpg`` under snapshots/YYYY/MM/DD, looking at the newest day first.
+
+    The tree holds a million+ files on a busy replay deployment, so never scan all of it
+    (that froze the whole app): stop at the first day folder that has a match.
+    """
+    now = time.monotonic()
+    cached = _LATEST_CACHE.get(serial)
+    if cached and now - cached[0] < _LATEST_CACHE_SECONDS:
+        return cached[1]
+    root = get_settings().snapshots_dir
+    found: Path | None = None
+
+    def children(path: Path) -> list[Path]:
+        try:
+            return sorted((p for p in path.iterdir() if p.is_dir()), reverse=True)
+        except OSError:
+            return []
+
+    for year in children(root):
+        for month in children(year):
+            for day in children(month):
+                best: tuple[float, Path] | None = None
+                with contextlib.suppress(OSError), os.scandir(day) as it:
+                    for entry in it:
+                        if entry.name.startswith(f"{serial}_") and entry.name.endswith(".jpg"):
+                            mtime = entry.stat().st_mtime
+                            if best is None or mtime > best[0]:
+                                best = (mtime, Path(entry.path))
+                if best is not None:
+                    found = best[1]
+                    break
+            if found:
+                break
+        if found:
+            break
+    _LATEST_CACHE[serial] = (now, found)
+    return found
+
+
+@router.get("/{serial}/snapshot/latest", summary="Get the most recent snapshot")
+async def get_latest_snapshot(serial: str) -> Response:
+    """Newest frame for a camera: straight from the live ring when there is one (no disk),
+    otherwise the newest snapshot file on disk (looked up off the event loop)."""
+    from app.ingest.manager import ingest_manager
+
+    frame = ingest_manager.latest_frame(serial)
+    if frame is not None:
+        return Response(
+            content=frame.jpeg, media_type="image/jpeg", headers={"Cache-Control": "no-store"}
+        )
+    path = await asyncio.to_thread(_newest_snapshot_on_disk, serial)
+    if path is None:
         raise HTTPException(status_code=404, detail=f"No snapshots on disk for {serial}")
-    return FileResponse(matches[0], media_type="image/jpeg")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 async def _mjpeg_frames(
