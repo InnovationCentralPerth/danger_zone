@@ -283,6 +283,15 @@ wins. On the big screen:
 - [ ] Agents both *active*; status bar AI says *Open-weight VLM · 235B (local, 2×H100)*.
 - [ ] Tell the team who is allowed to change the mission right now.
 
+### If a screen freezes or crawls
+
+The server is almost never the cause: check `curl localhost:8001/healthz` and `top` on the VM. If
+it answers instantly and the app is near 0% CPU, the *browser tab* is stuck (a tab left open
+for many hours can degrade, and one that outlives a server restart runs old page code). Close
+the browser completely and reopen it. Dashboard tabs now reload themselves after a server
+restart and after 30 idle minutes, but still start the day (and before VIPs arrive) with a
+fresh load of each screen: Ctrl-Shift-R.
+
 ### Say / don't say (everyone, every time)
 
 - **Say:** "Recorded footage, live analysis." Replay is always badged REPLAY.

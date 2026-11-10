@@ -1373,3 +1373,35 @@ function initOpsBar() {
 initPlaybackControls();
 initAssistant();
 initOpsBar();
+
+// ---- self-healing for a tab left open all day ------------------------------------------
+// A tab open for many hours can degrade, and a tab that outlives a server restart keeps running
+// old page code. Two cheap safety nets, both invisible while the page is in use:
+//  1) reload once the server comes back after the event stream dropped (e.g. a restart);
+//  2) reload when idle (no touch/key for 60 s) once the page is 30 minutes old.
+// State that matters survives a reload: camera, scope and Clear-feed are in localStorage, the mission
+// and replay position live on the server.
+(function selfHeal() {
+  const SINCE_LOAD = Date.now();
+  const GUARD = 'dz.autoReloadAt';
+  const reload = () => {
+    const last = parseInt(sessionStorage.getItem(GUARD) || '0', 10) || 0;
+    if (Date.now() - last < 60000) return; // never loop, even if the server flaps
+    sessionStorage.setItem(GUARD, String(Date.now()));
+    location.reload();
+  };
+  let dropped = false;
+  evtSource.addEventListener('error', () => { dropped = true; });
+  evtSource.addEventListener('open', () => {
+    if (dropped) { dropped = false; setTimeout(reload, 1500 + Math.random() * 3000); }
+  });
+  let lastTouch = Date.now();
+  for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+    document.addEventListener(ev, () => { lastTouch = Date.now(); }, { passive: true, capture: true });
+  }
+  setInterval(() => {
+    const typing = document.activeElement && document.activeElement.matches('textarea, input');
+    if (Date.now() - SINCE_LOAD > 30 * 60 * 1000 && Date.now() - lastTouch > 60 * 1000 && !typing) reload();
+  }, 15000);
+})();
+

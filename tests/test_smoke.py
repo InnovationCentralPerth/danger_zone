@@ -236,3 +236,15 @@ def test_hot_query_columns_are_indexed(tmp_path, monkeypatch):
     ).fetchall()
     assert "TEMP B-TREE" not in str(plan)
     config.get_settings.cache_clear()
+
+
+def test_dashboard_tab_heals_itself_after_a_restart_or_a_long_idle_spell():
+    # A tab left open for ~18 h froze when its Clear button was pressed, and a tab that outlives a
+    # server restart keeps running old page code. The page now reloads itself in both cases.
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parent.parent / "static/js/main.js").read_text()
+    assert "function selfHeal()" in js
+    assert "30 * 60 * 1000" in js and "60 * 1000" in js  # 30 min old + 60 s idle
+    assert "dz.autoReloadAt" in js and "last < 60000" in js  # never loops
+    assert "matches('textarea, input')" in js  # never under the user's hands
