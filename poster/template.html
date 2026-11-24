@@ -344,21 +344,28 @@ window.POSTER = __POSTER_JSON__;
        screen   = served from the VM (the big screen): the last box opens the live demo, and the
                   poster returns to the overview after a minute of nobody touching it;
        handheld = saved file on the roaming tablet: the last box points people to the big screen. */
+  /* BUILD is fixed when the file is built: 'public' is the copy published on the internet. It never
+     links to the private demo, has no presenter notes and no idle reset. */
+  const BUILD = '__BUILD__';
   const HASH = location.hash.toLowerCase();
-  const MODE = HASH.includes('handheld') ? 'handheld' : HASH.includes('screen') ? 'screen' : (/^https?:$/.test(location.protocol) ? 'screen' : 'handheld');
+  const MODE = BUILD === 'public' ? 'public' : HASH.includes('handheld') ? 'handheld' : HASH.includes('screen') ? 'screen' : (/^https?:$/.test(location.protocol) ? 'screen' : 'handheld');
   const DEMO_URL = /^https?:$/.test(location.protocol) ? location.origin + '/' : P.demo_url;
-  if (HASH.includes('notes')) localStorage.setItem('ss.notes', '1');
+  if (BUILD !== 'public' && HASH.includes('notes')) localStorage.setItem('ss.notes', '1');
   if (HASH.includes('nonotes')) localStorage.removeItem('ss.notes');
-  const NOTES_ON = localStorage.getItem('ss.notes') === '1';
+  const NOTES_ON = BUILD !== 'public' && localStorage.getItem('ss.notes') === '1';
   const grid = $('#grid');
-  TILES.push({ id: 'demo', n: 9, cta: true, title: MODE === 'screen' ? 'Live demo' : 'See it live on the big screen',
-    one: MODE === 'screen' ? 'Open the running system: cameras, missions, Ask. Replayed footage, live analysis.' : 'The running system is on the big screen. Walk over and we’ll show you.' });
+  const CTA = {
+    screen: ['Live demo', 'Open the running system: cameras, missions, Ask. Replayed footage, live analysis.'],
+    handheld: ['See it live on the big screen', 'The running system is on the big screen. Walk over and we’ll show you.'],
+    public: ['Want to see it live? Get in touch', 'The live system runs on our own site. Message Innovation Central Perth and we’ll arrange a demo.'],
+  }[MODE];
+  TILES.push({ id: 'demo', n: 9, cta: true, title: CTA[0], one: CTA[1] });
   TILES.forEach((t) => {
     if (t.cta) {
       const el = h(`<button class="tile cta${MODE === 'screen' ? ' link' : ''}" type="button" data-id="demo">
         <div class="num"><span>09</span></div><div class="ctext"><h2>${t.title}</h2><div class="one">${t.one}</div></div>
         <span class="arrow">${MODE === 'screen' ? '▶' : '→'}</span></button>`);
-      el.addEventListener('click', () => { if (MODE === 'screen') location.href = DEMO_URL; else openPanel('demo'); });
+      el.addEventListener('click', () => { if (MODE === 'screen') location.href = DEMO_URL; else openPanel(MODE === 'public' ? 'contact' : 'demo'); });
       grid.appendChild(el);
       return;
     }
@@ -653,7 +660,20 @@ window.POSTER = __POSTER_JSON__;
       <p class="rec" style="margin-top:1.1rem">Walk over and we’ll show you.</p>`;
   } };
 
+  /* the last box on the public copy: how to get a live demo */
+  PANELS.contact = { title: 'Live demo', sub: '09', render(el) {
+    el.innerHTML = `<p class="lead">Want to see it live? Get in touch.</p>
+      <p class="sub">The live system runs on our own infrastructure, so we show it in person or on a call. Everything on this poster was recorded from it.</p>
+      <div class="contact"><div class="qr">${QR_SVG}</div>
+        <div class="words"><b>Message Innovation Central Perth on LinkedIn</b>
+        <p class="sub" style="margin-top:0">Scan the code, or use the button.</p>
+        <a class="mchip on" id="lilink" target="_blank" rel="noopener" style="display:inline-block;margin-top:.8rem;text-decoration:none">Open LinkedIn ›</a>
+        <p class="sub">Innovation Central Perth is a partnership between Curtin University and Cisco.</p></div></div>`;
+    el.querySelector('#lilink').href = P.linkedin;
+  } };
+
   /* ---------------- presenter notes (only with #notes in the address) ---------------- */
+  /*NOTES:BEGIN*/
   const NOTES = {
     overview: {
       say: ['“Most sites have cameras. Very few have anyone watching them. Let me show you what we built about that.”',
@@ -712,6 +732,7 @@ window.POSTER = __POSTER_JSON__;
       point: ['Before you go: check the big screen has the intended mission and a cleared feed (runbook: Reset the demo).'],
       avoid: ['Don’t open the live demo from the handheld tablet. Walking over is the point.'] },
   };
+  /*NOTES:END*/
   const notesBtn = h('<button class="notesbtn" type="button" hidden>Notes</button>');
   const notesBox = h('<aside class="notes" hidden></aside>');
   document.body.append(notesBtn, notesBox);

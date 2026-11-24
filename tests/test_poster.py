@@ -90,7 +90,7 @@ def test_woodshop_results_are_honest_and_measured(html):
 def test_home_screen_has_the_qr_and_the_new_headline(html):
     # The QR is rendered on the overview (tile 8) from one shared constant, and again in the panel.
     assert "const QR_SVG = `<svg" in html
-    assert html.count("${QR_SVG}") == 2
+    assert html.count("${QR_SVG}") == 3  # overview tile, "What's next" panel, public contact panel
     assert 'class="qrbox"' in html
     assert "Every site has cameras. Not everyone is watching." in html
 
@@ -157,3 +157,45 @@ def test_data_panel_states_only_what_was_measured(html):
         assert fact in html, fact
     for banned in ("no outbound connections", "no route to the internet", "air-gapped"):
         assert banned not in html.lower(), banned
+
+
+@pytest.fixture(scope="module")
+def public_html(html) -> str:  # `html` builds both copies
+    return (build_poster.ROOT / "dist" / "safety-sentry-poster-public.html").read_text()
+
+
+def test_public_poster_leaks_nothing_private(public_html, html):
+    # The public copy goes on the internet: no private hostnames, tailnet addresses, local paths,
+    # presenter notes or demo address. (The internal copy legitimately knows the demo address.)
+    assert not re.findall(r"__[A-Z0-9_]{3,}__", public_html)
+    for private in ("xenterm", "ts.net", "/home/marrabld", "/models/", "localhost:", '"demo_url"'):
+        assert private not in public_html, private
+    assert not re.search(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", public_html)
+    for internal_note in (
+        "Don’t say it is on-premise",
+        "Don’t imply an integration exists",
+        "Don’t tap tile 9 on the handheld",
+    ):
+        assert internal_note not in public_html, internal_note
+    assert "const NOTES = {};" in public_html and "const BUILD = 'public';" in public_html
+    assert (
+        "xenterm" in html and '"demo_url"' in html
+    )  # the internal copy still points at the private demo
+
+
+def test_public_poster_says_get_in_touch_and_stays_self_contained(public_html):
+    assert "Want to see it live? Get in touch" in public_html
+    assert (
+        "PANELS.contact" in public_html
+        and "el.querySelector('#lilink').href = P.linkedin" in public_html
+    )
+    loads = re.findall(r"""(?:src|href)=["'](https?://[^"']+)""", public_html) + re.findall(
+        r"url\((https?://[^)]+)\)", public_html
+    )
+    assert loads == []
+    assert "Qwen" not in public_html.split("window.POSTER")[0] and public_html.count("Qwen") == 1
+
+
+def test_only_the_internal_poster_is_served_by_the_private_app():
+    served = sorted(p.name for p in (build_poster.REPO / "static" / "poster").glob("*.html"))
+    assert served == ["safety-sentry-poster.html"]

@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -41,7 +42,8 @@ def data_uri(path: Path) -> str:
     )
 
 
-def main() -> None:
+def build(public: bool) -> Path:
+    """Build one poster. The public copy has no private demo address and no presenter notes."""
     results = json.loads((ROOT / "data" / "results.json").read_text())
 
     for m in results["moments"]:
@@ -57,7 +59,8 @@ def main() -> None:
     ]
     results["dashboard"] = data_uri(ROOT / "assets" / "dashboard.webp")
     results["linkedin"] = LINKEDIN
-    results["demo_url"] = DEMO_URL
+    if not public:
+        results["demo_url"] = DEMO_URL
 
     qr = segno.make(LINKEDIN, error="m").svg_inline(
         omitsize=True, dark="#0b1220", light="#ffffff", border=0
@@ -75,6 +78,7 @@ def main() -> None:
         "__LOGO_NIIN__": data_uri(partners / "niin.png"),
         "__LOGO_CIDS__": data_uri(partners / "cids.png"),
         "__LOGO_VICTORY__": data_uri(partners / "victory.png"),
+        "__BUILD__": "public" if public else "internal",
         "__QR_SVG__": qr,
         "__POSTER_JSON__": json.dumps(results, ensure_ascii=False).replace("</", "<\\/"),
     }
@@ -83,13 +87,31 @@ def main() -> None:
             raise SystemExit(f"template is missing placeholder {key}")
         html = html.replace(key, value)
 
-    out = ROOT / "dist" / "safety-sentry-poster.html"
+    if public:  # internal coaching text must not be published
+        html = re.sub(
+            r"/\*NOTES:BEGIN\*/.*?/\*NOTES:END\*/", "const NOTES = {};", html, count=1, flags=re.S
+        )
+    out = (
+        ROOT
+        / "dist"
+        / ("safety-sentry-poster-public.html" if public else "safety-sentry-poster.html")
+    )
     out.parent.mkdir(exist_ok=True)
     out.write_text(html)
-    served = REPO / "static" / "poster"
-    served.mkdir(exist_ok=True)
-    shutil.copy(out, served / out.name)
-    print(f"wrote {out} ({out.stat().st_size / 1024 / 1024:.2f} MB); copy at {served / out.name}")
+    if not public:  # only the internal copy is served by the (private) app
+        served = REPO / "static" / "poster"
+        served.mkdir(exist_ok=True)
+        shutil.copy(out, served / out.name)
+    return out
+
+
+def main() -> None:
+    for public in (False, True):
+        out = build(public)
+        print(
+            f"wrote {out} ({out.stat().st_size / 1024 / 1024:.2f} MB)"
+            + ("  [PUBLIC]" if public else "")
+        )
 
 
 if __name__ == "__main__":

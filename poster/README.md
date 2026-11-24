@@ -31,6 +31,16 @@ To refresh the dashboard screenshot used in "How it works": `poster/capture_dash
    on Android *screen pinning*. The poster also asks the browser to keep the screen awake.
 3. Android's Back button returns from a panel to the overview.
 
+## Public copy
+
+`python poster/build_poster.py` writes two files to `dist/`: `safety-sentry-poster.html` (internal: the
+modes below, presenter notes, the private demo address; also copied to `static/poster/` and served by
+the private app) and **`safety-sentry-poster-public.html`** (safe to host on the internet). The public
+copy has no demo address, no presenter notes and no idle reset; its last box says **"Want to see it live?
+Get in touch"** and opens a panel with the LinkedIn QR and button. `tests/test_poster.py` fails if a
+private hostname, tailnet address, local path or any presenter-note text gets into it. The public file
+is never served by the app on :8001 and is not committed.
+
 ## Two modes, one file
 
 The last box (09) depends on where the page is opened: from the VM over http (the big
